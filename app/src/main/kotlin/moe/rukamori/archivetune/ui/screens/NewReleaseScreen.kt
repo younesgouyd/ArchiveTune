@@ -91,6 +91,7 @@ import moe.rukamori.archivetune.ui.component.shimmer.GridItemPlaceHolder
 import moe.rukamori.archivetune.ui.component.shimmer.ShimmerHost
 import moe.rukamori.archivetune.ui.menu.YouTubeAlbumMenu
 import moe.rukamori.archivetune.ui.utils.backToMain
+import moe.rukamori.archivetune.ui.utils.navigateToAlbum
 import moe.rukamori.archivetune.viewmodels.NewReleaseContent
 import moe.rukamori.archivetune.viewmodels.NewReleaseUiState
 import moe.rukamori.archivetune.viewmodels.NewReleaseViewModel
@@ -164,7 +165,7 @@ fun NewReleaseScreen(
                         activeAlbumId = mediaMetadata?.album?.id,
                         isPlaying = isPlaying,
                         coroutineScope = coroutineScope,
-                        onReleaseClick = { album -> navController.navigate("album/${album.id}") },
+                        onReleaseClick = { album -> navController.navigateToAlbum(album.id) },
                         onReleaseLongClick = { album ->
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
@@ -197,16 +198,9 @@ fun NewReleaseScreen(
                             )
                             Spacer(Modifier.height(16.dp))
                             Text(
-                                text = "New releases are temporarily unavailable",
+                                text = stringResource(R.string.network_unavailable),
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center,
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = "ArchiveTune could not load this YouTube Music section. Try again later.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                             )
                             Spacer(Modifier.height(24.dp))

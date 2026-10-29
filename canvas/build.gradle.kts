@@ -8,6 +8,8 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":spotifycore"))
+    implementation(libs.protobuf.javalite)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)

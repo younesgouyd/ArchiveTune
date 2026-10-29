@@ -35,8 +35,10 @@ import moe.rukamori.archivetune.constants.AiApiValidationStatus
 import moe.rukamori.archivetune.constants.AiApiValidationStatusKey
 import moe.rukamori.archivetune.constants.AiCustomEndpointKey
 import moe.rukamori.archivetune.constants.AiCustomModelKey
+import moe.rukamori.archivetune.constants.AiCustomPromptKey
 import moe.rukamori.archivetune.constants.AiProvider
 import moe.rukamori.archivetune.constants.AiProviderKey
+import moe.rukamori.archivetune.constants.AiRequestParametersKey
 import moe.rukamori.archivetune.constants.AiSelectedModelKey
 import moe.rukamori.archivetune.db.MusicDatabase
 import moe.rukamori.archivetune.db.entities.LyricsEntity
@@ -47,9 +49,12 @@ import moe.rukamori.archivetune.lyrics.LyricsUtils
 import moe.rukamori.archivetune.lyrics.LyricsUtils.displayLyricsText
 import moe.rukamori.archivetune.lyrics.LyricsUtils.isLineSyncedLrc
 import moe.rukamori.archivetune.lyrics.LyricsUtils.isTtml
+import moe.rukamori.archivetune.lyrics.translation.TranslateLyricsResult
+import moe.rukamori.archivetune.lyrics.translation.TranslateLyricsUseCase
 import moe.rukamori.archivetune.models.MediaMetadata
 import moe.rukamori.archivetune.utils.NetworkConnectivityObserver
 import moe.rukamori.archivetune.utils.dataStore
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
 sealed interface LyricsSearchScreenState {
@@ -81,6 +86,28 @@ data class LyricsSearchResultUiModel(
     val isWordSynced: Boolean,
 )
 
+@Immutable
+sealed interface LyricsTranslationError {
+    data object Failed : LyricsTranslationError
+
+    data class UnsupportedLanguage(
+        val languageName: String,
+    ) : LyricsTranslationError
+}
+
+@Immutable
+sealed interface LyricsTranslationScreenState {
+    data object Loading : LyricsTranslationScreenState
+
+    data object Success : LyricsTranslationScreenState
+
+    data object Empty : LyricsTranslationScreenState
+
+    data class Error(
+        val error: LyricsTranslationError,
+    ) : LyricsTranslationScreenState
+}
+
 @HiltViewModel
 class LyricsMenuViewModel
     @Inject
@@ -89,13 +116,23 @@ class LyricsMenuViewModel
         private val lyricsHelper: LyricsHelper,
         val database: MusicDatabase,
         private val networkConnectivity: NetworkConnectivityObserver,
+        private val translateLyricsUseCase: TranslateLyricsUseCase,
     ) : ViewModel() {
         private var job: Job? = null
+        private var translationJob: Job? = null
         private var aiTranslationJob: Job? = null
+        private val searchGeneration = AtomicLong(0L)
         private val _lyricsSearchState = MutableStateFlow<LyricsSearchScreenState>(LyricsSearchScreenState.Empty)
         val lyricsSearchState: StateFlow<LyricsSearchScreenState> = _lyricsSearchState.asStateFlow()
-        val isRefetching = MutableStateFlow(false)
+        private val _isRefetching = MutableStateFlow(false)
+        val isRefetching: StateFlow<Boolean> = _isRefetching.asStateFlow()
+        private val _refetchCompletionEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val refetchCompletionEvents: SharedFlow<Unit> = _refetchCompletionEvents.asSharedFlow()
         val isAiTranslating = MutableStateFlow(false)
+
+        private val _lyricsTranslationState =
+            MutableStateFlow<LyricsTranslationScreenState>(LyricsTranslationScreenState.Empty)
+        val lyricsTranslationState: StateFlow<LyricsTranslationScreenState> = _lyricsTranslationState.asStateFlow()
 
         private val _aiTranslationEvents = MutableSharedFlow<String>()
         val aiTranslationEvents: SharedFlow<String> = _aiTranslationEvents.asSharedFlow()
@@ -125,14 +162,21 @@ class LyricsMenuViewModel
             album: String?,
             duration: Int,
         ) {
+            val generation = searchGeneration.incrementAndGet()
             job?.cancel()
-            lyricsHelper.cancelCurrentLyricsJob()
             _lyricsSearchState.value = LyricsSearchScreenState.Loading
             job =
                 viewModelScope.launch(Dispatchers.IO) {
                     val resultModels = mutableListOf<LyricsSearchResultUiModel>()
                     try {
-                        lyricsHelper.getAllLyrics(mediaId, title, artist, album, duration) { result ->
+                        lyricsHelper.getAllLyrics(
+                            mediaId = mediaId,
+                            songTitle = title,
+                            songArtists = artist,
+                            songAlbum = album,
+                            duration = duration,
+                        ) { result ->
+                            if (generation != searchGeneration.get()) return@getAllLyrics
                             val model = result.toUiModel(resultModels.size)
                             if (model.preview.isBlank()) return@getAllLyrics
 
@@ -143,6 +187,7 @@ class LyricsMenuViewModel
                                     isSearching = true,
                                 )
                         }
+                        if (generation != searchGeneration.get()) return@launch
                         _lyricsSearchState.value =
                             if (resultModels.isEmpty()) {
                                 LyricsSearchScreenState.Empty
@@ -155,15 +200,17 @@ class LyricsMenuViewModel
                     } catch (e: CancellationException) {
                         throw e
                     } catch (_: Exception) {
-                        _lyricsSearchState.value = LyricsSearchScreenState.Error(R.string.error_unknown)
+                        if (generation == searchGeneration.get()) {
+                            _lyricsSearchState.value = LyricsSearchScreenState.Error(R.string.error_unknown)
+                        }
                     }
                 }
         }
 
         fun cancelSearch() {
+            searchGeneration.incrementAndGet()
             job?.cancel()
             job = null
-            lyricsHelper.cancelCurrentLyricsJob()
         }
 
         fun resetSearchState() {
@@ -172,20 +219,24 @@ class LyricsMenuViewModel
         }
 
         fun refetchLyrics(mediaMetadata: MediaMetadata) {
+            if (!_isRefetching.compareAndSet(expect = false, update = true)) return
+
             viewModelScope.launch(Dispatchers.IO) {
-                isRefetching.value = true
                 try {
-                    val lyrics = lyricsHelper.getLyrics(mediaMetadata)
-                    database.query {
+                    val lyrics = lyricsHelper.getLyrics(mediaMetadata, forceRefresh = true)
+                    database.withTransaction {
                         replaceLyrics(
                             id = mediaMetadata.id,
                             lyrics = lyrics,
                             source = LyricsEntity.Source.REMOTE.value,
                         )
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                 } finally {
-                    isRefetching.value = false
+                    _isRefetching.value = false
+                    _refetchCompletionEvents.tryEmit(Unit)
                 }
             }
         }
@@ -204,8 +255,11 @@ class LyricsMenuViewModel
                         -> LyricsUtils.lyricsOrNotFound(lyrics)
 
                         LyricsEntity.Source.USER_EDIT,
-                        LyricsEntity.Source.AI_TRANSLATION,
                         -> lyrics
+
+                        LyricsEntity.Source.TRANSLATION,
+                        LyricsEntity.Source.AI_TRANSLATION ->
+                            usableTranslatedLyrics(lyrics) ?: return@launch
                     }
                 database.query {
                     replaceLyrics(
@@ -214,6 +268,65 @@ class LyricsMenuViewModel
                         source = source.value,
                     )
                 }
+            }
+        }
+
+        fun translateLyrics(
+            mediaMetadata: MediaMetadata,
+            lyrics: String,
+            targetLanguage: String,
+            targetLanguageName: String,
+        ) {
+            if (translationJob?.isActive == true) return
+            if (lyrics.isBlank()) {
+                _lyricsTranslationState.value =
+                    LyricsTranslationScreenState.Error(LyricsTranslationError.Failed)
+                return
+            }
+
+            _lyricsTranslationState.value = LyricsTranslationScreenState.Loading
+            translationJob =
+                viewModelScope.launch {
+                    val runningJob = coroutineContext[Job]
+                    try {
+                        _lyricsTranslationState.value =
+                            when (
+                                translateLyricsUseCase(
+                                    mediaId = mediaMetadata.id,
+                                    lyrics = lyrics,
+                                    targetLanguage = targetLanguage,
+                                )
+                            ) {
+                                TranslateLyricsResult.Success -> LyricsTranslationScreenState.Success
+                                TranslateLyricsResult.Empty ->
+                                    LyricsTranslationScreenState.Error(LyricsTranslationError.Failed)
+                                TranslateLyricsResult.UnsupportedLanguage ->
+                                    LyricsTranslationScreenState.Error(
+                                        LyricsTranslationError.UnsupportedLanguage(targetLanguageName),
+                                    )
+                            }
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (_: Exception) {
+                        _lyricsTranslationState.value =
+                            LyricsTranslationScreenState.Error(LyricsTranslationError.Failed)
+                    } finally {
+                        if (translationJob === runningJob) {
+                            translationJob = null
+                        }
+                    }
+                }
+        }
+
+        fun cancelLyricsTranslation() {
+            translationJob?.cancel()
+            translationJob = null
+            _lyricsTranslationState.value = LyricsTranslationScreenState.Empty
+        }
+
+        fun clearLyricsTranslationResult() {
+            if (_lyricsTranslationState.value !is LyricsTranslationScreenState.Loading) {
+                _lyricsTranslationState.value = LyricsTranslationScreenState.Empty
             }
         }
 
@@ -235,6 +348,7 @@ class LyricsMenuViewModel
                                         provider = prefs[AiProviderKey].toEnum(AiProvider.NONE),
                                         apiKey = prefs[AiApiKeyKey].orEmpty(),
                                         customEndpoint = prefs[AiCustomEndpointKey].orEmpty(),
+                                        requestParameters = prefs[AiRequestParametersKey].orEmpty(),
                                         model =
                                             if (prefs[AiProviderKey].toEnum(AiProvider.NONE) == AiProvider.CUSTOM) {
                                                 prefs[AiCustomModelKey].orEmpty()
@@ -244,25 +358,25 @@ class LyricsMenuViewModel
                                     ),
                                 lyrics = lyrics,
                                 targetLanguage = targetLanguage.ifBlank { "ENGLISH" },
+                                customPrompt = prefs[AiCustomPromptKey].orEmpty(),
                             )
+                        val usableLyrics = usableTranslatedLyrics(translatedLyrics)
+                        if (usableLyrics == null) {
+                            _aiTranslationEvents.emit(context.getString(R.string.translation_failed))
+                            return@launch
+                        }
                         database.query {
                             replaceLyrics(
                                 id = mediaMetadata.id,
-                                lyrics = translatedLyrics,
+                                lyrics = usableLyrics,
                                 source = LyricsEntity.Source.AI_TRANSLATION.value,
                             )
-                        }
-                        context.dataStore.edit { settings ->
-                            settings[AiApiValidationStatusKey] = AiApiValidationStatus.SUCCESS.name
                         }
                         val msg = context.getString(R.string.translation_success)
                         _aiTranslationEvents.emit(msg)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        context.dataStore.edit { settings ->
-                            settings[AiApiValidationStatusKey] = AiApiValidationStatus.FAILED.name
-                        }
                         val msg = context.getString(R.string.translation_failed) + ": " + (e.localizedMessage ?: e.toString())
                         _aiTranslationEvents.emit(msg)
                     } finally {
@@ -271,6 +385,11 @@ class LyricsMenuViewModel
                     }
                 }
         }
+
+        private fun usableTranslatedLyrics(lyrics: String): String? =
+            LyricsUtils
+                .normalizeLyricsText(lyrics)
+                .takeIf(LyricsUtils::hasMeaningfulLyricsContent)
 
         fun cancelAiTranslation() {
             aiTranslationJob?.cancel()
@@ -288,7 +407,7 @@ class LyricsMenuViewModel
                 } else {
                     emptyList()
                 }
-            val isWordSynced = ttmlEntries.any { !it.words.isNullOrEmpty() }
+            val isWordSynced = LyricsUtils.hasWordSyncedLyrics(lyrics)
 
             return LyricsSearchResultUiModel(
                 id = "${providerName}_${lyrics.hashCode()}_$index",
@@ -298,10 +417,10 @@ class LyricsMenuViewModel
                 lineCount = lineCount,
                 characterCount = preview.length,
                 isLineSynced =
-                    if (isTtmlLyrics) {
-                        ttmlEntries.isNotEmpty() && !isWordSynced
-                    } else {
-                        isLineSyncedLrc(lyrics)
+                    when {
+                        isWordSynced -> false
+                        isTtmlLyrics -> ttmlEntries.isNotEmpty()
+                        else -> isLineSyncedLrc(lyrics)
                     },
                 isWordSynced = isWordSynced,
             )

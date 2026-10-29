@@ -47,7 +47,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,12 +64,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import coil3.compose.AsyncImage
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.LocalDatabase
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
@@ -84,9 +81,11 @@ import moe.rukamori.archivetune.constants.ArtistSortTypeKey
 import moe.rukamori.archivetune.constants.YtmSyncKey
 import moe.rukamori.archivetune.extensions.toMediaItem
 import moe.rukamori.archivetune.playback.queues.ListQueue
-import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
+import moe.rukamori.archivetune.ui.component.ItemThumbnail
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.menu.ArtistMenu
+import moe.rukamori.archivetune.ui.screens.Screens
+import moe.rukamori.archivetune.ui.utils.navigateToArtist
 import moe.rukamori.archivetune.utils.rememberEnumPreference
 import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.LibraryArtistsViewModel
@@ -114,16 +113,17 @@ fun LibraryArtistsScreen(
 
     var filter by rememberEnumPreference(ArtistFilterKey, ArtistFilter.LIKED)
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(ytmSync, filter) {
         if (ytmSync) {
-            withContext(Dispatchers.IO) {
-                viewModel.sync()
-            }
+            viewModel.refresh(filter)
         }
     }
 
-    val artists by viewModel.allArtists.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val artists by viewModel.allArtists.collectAsStateWithLifecycle()
+    val refreshState by viewModel.refreshState.collectAsStateWithLifecycle()
+    val refreshLibrary = remember(viewModel, filter) { { viewModel.refresh(filter) } }
+    val onRefreshErrorShown = remember(viewModel) { { viewModel.onRefreshErrorShown() } }
+    val openSearch = remember(navController) { { navController.navigate(Screens.Search.route) } }
 
     val topArtist = artists.firstOrNull()
 
@@ -134,14 +134,22 @@ fun LibraryArtistsScreen(
             .asPaddingValues()
             .calculateBottomPadding() + 12.dp
 
-    ExpressivePullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = { viewModel.sync() },
+    LibraryRefreshContainer(
+        state = refreshState,
+        onRefresh = refreshLibrary,
+        onErrorShown = onRefreshErrorShown,
         modifier = Modifier.fillMaxSize(),
+        indicatorOffset = LibraryPullToRefreshIndicatorOffset,
     ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = playerAwareBottomPadding),
+            contentPadding =
+                PaddingValues(
+                    start = 24.dp,
+                    top = LibraryHeaderContentPadding,
+                    end = 24.dp,
+                    bottom = playerAwareBottomPadding,
+                ),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize(),
@@ -165,7 +173,7 @@ fun LibraryArtistsScreen(
                                 .clip(RoundedCornerShape(36.dp))
                                 .background(MaterialTheme.colorScheme.primaryContainer)
                                 .clickable {
-                                    topArtist?.let { navController.navigate("artist/${it.artist.id}") }
+                                    topArtist?.let { navController.navigateToArtist(it.artist.id) }
                                 }.padding(16.dp),
                     ) {
                         Column(
@@ -486,6 +494,20 @@ fun LibraryArtistsScreen(
                 }
             }
 
+            if (artists.isEmpty()) {
+                item(
+                    span = { GridItemSpan(2) },
+                    key = "artists_empty",
+                    contentType = "library_empty_state",
+                ) {
+                    LibraryEmptyState(
+                        iconRes = R.drawable.artist,
+                        actionLabelRes = R.string.search_yt_music,
+                        onAction = openSearch,
+                    )
+                }
+            }
+
             // Artists Grid: 2-column capsule artist cards
             items(artists, key = { it.id }) { artistWrapper ->
                 val artist = artistWrapper.artist
@@ -496,7 +518,7 @@ fun LibraryArtistsScreen(
                             .clip(RoundedCornerShape(28.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                             .combinedClickable(
-                                onClick = { navController.navigate("artist/${artist.id}") },
+                                onClick = { navController.navigateToArtist(artist.id) },
                                 onLongClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     menuState.show {
@@ -511,15 +533,16 @@ fun LibraryArtistsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Avatar image circle
-                    AsyncImage(
-                        model = artist.thumbnailUrl,
-                        contentDescription = null,
+                    ItemThumbnail(
+                        thumbnailUrl = artist.thumbnailUrl,
+                        isActive = false,
+                        isPlaying = false,
+                        shape = CircleShape,
                         contentScale = ContentScale.Crop,
+                        showPlaceholder = true,
                         modifier =
                             Modifier
-                                .size(52.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                .size(52.dp),
                     )
 
                     Spacer(modifier = Modifier.width(10.dp))
@@ -602,18 +625,19 @@ fun LibraryArtistsScreen(
                                     Modifier
                                         .width(72.dp)
                                         .clickable {
-                                            navController.navigate("artist/${artist.id}")
+                                            navController.navigateToArtist(artist.id)
                                         },
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
-                                AsyncImage(
-                                    model = artist.thumbnailUrl,
-                                    contentDescription = null,
+                                ItemThumbnail(
+                                    thumbnailUrl = artist.thumbnailUrl,
+                                    isActive = false,
+                                    isPlaying = false,
+                                    shape = CircleShape,
                                     contentScale = ContentScale.Crop,
                                     modifier =
                                         Modifier
-                                            .size(60.dp)
-                                            .clip(CircleShape),
+                                            .size(60.dp),
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(

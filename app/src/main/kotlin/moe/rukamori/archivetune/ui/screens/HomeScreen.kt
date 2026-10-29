@@ -7,6 +7,7 @@
 
 package moe.rukamori.archivetune.ui.screens
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -50,7 +51,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -58,11 +58,18 @@ import kotlinx.coroutines.CoroutineScope
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.constants.QuickPicks
 import moe.rukamori.archivetune.home.HomeAction
+import moe.rukamori.archivetune.home.HomeEvent
 import moe.rukamori.archivetune.home.HomeScreenState
 import moe.rukamori.archivetune.home.HomeUiState
+import moe.rukamori.archivetune.home.hasVisibleContent
+import moe.rukamori.archivetune.innertube.pages.HomePage
 import moe.rukamori.archivetune.models.MediaMetadata
+import moe.rukamori.archivetune.extensions.toMediaItem
 import moe.rukamori.archivetune.playback.PlayerConnection
+import moe.rukamori.archivetune.playback.queues.ListQueue
+import moe.rukamori.archivetune.playback.queues.YouTubeQueue
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.component.MenuState
@@ -76,8 +83,8 @@ private val HomeSectionSpacing = 18.dp
 @Composable
 fun HomeScreen(
     navController: NavController,
+    viewModel: HomeViewModel,
     headerScrollConnection: NestedScrollConnection? = null,
-    viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val menuState = LocalMenuState.current
@@ -86,6 +93,23 @@ fun HomeScreen(
     val screenState by viewModel.screenState.collectAsStateWithLifecycle()
     val isPlaying by playerConnection.isPlaying.collectAsStateWithLifecycle()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsStateWithLifecycle()
+
+    LaunchedEffect(viewModel, playerConnection, navController) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is HomeEvent.OpenPodcast -> navController.navigate("podcast/${Uri.encode(event.browseId)}")
+                is HomeEvent.PlayPodcastEpisode -> {
+                    playerConnection.playQueue(
+                        ListQueue(
+                            title = event.request.title,
+                            items = event.request.items.map { metadata -> metadata.toMediaItem() },
+                            startIndex = event.request.startIndex,
+                        ),
+                    )
+                }
+            }
+        }
+    }
 
     val lazyListState = rememberLazyListState()
     val forgottenFavoritesGridState = rememberLazyGridState()
@@ -270,6 +294,10 @@ private fun HomeContent(
     onAction: (HomeAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val remoteQuickPicks =
+        uiState
+            .takeIf { it.quickPicksMode == QuickPicks.QUICK_PICKS }
+            ?.remoteQuickPicks
     val tonalStart = MaterialTheme.colorScheme.primaryContainer
     val tonalMiddle = MaterialTheme.colorScheme.secondaryContainer
     Box(modifier = modifier.fillMaxSize()) {
@@ -333,7 +361,36 @@ private fun HomeContent(
                         }
                     }
 
-                    if (uiState.quickPicks.isNotEmpty()) {
+                    if (remoteQuickPicks?.items?.isNotEmpty() == true) {
+                        item(
+                            key = "home_remote_quick_picks_header",
+                            contentType = "section_header",
+                        ) {
+                            HomeSectionHeader(
+                                title = stringResource(R.string.quick_picks),
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
+                        item(
+                            key = "home_remote_quick_picks",
+                            contentType = "quick_picks",
+                        ) {
+                            RemoteQuickPicksSection(
+                                section = remoteQuickPicks,
+                                mediaMetadata = mediaMetadata,
+                                isPlaying = isPlaying,
+                                displayMode = uiState.quickPicksDisplayMode,
+                                navController = navController,
+                                playerConnection = playerConnection,
+                                menuState = menuState,
+                                haptic = haptic,
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
+                    } else if (
+                        uiState.quickPicksMode == QuickPicks.LAST_LISTEN &&
+                            uiState.quickPicks.isNotEmpty()
+                    ) {
                         item(
                             key = "home_quick_picks_header",
                             contentType = "section_header",
@@ -356,6 +413,44 @@ private fun HomeContent(
                                 playerConnection = playerConnection,
                                 menuState = menuState,
                                 haptic = haptic,
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
+                    }
+
+                    uiState.communitySection?.takeIf { section -> section.featuredCards.isNotEmpty() }?.let { section ->
+                        sectionSpacer("community")
+                        item(
+                            key = "home_community_header",
+                            contentType = "section_header",
+                        ) {
+                            val playAll =
+                                remember(section.playEndpoint, playerConnection) {
+                                    section.playEndpoint?.let { endpoint ->
+                                        { playerConnection.playQueue(YouTubeQueue.playlist(endpoint)) }
+                                    }
+                                }
+                            HomePageSectionTitle(
+                                section = section,
+                                navController = navController,
+                                onPlayAll = playAll,
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
+                        item(
+                            key = "home_community",
+                            contentType = "featured_playlist_shelf",
+                        ) {
+                            HomePageSectionContent(
+                                section = section,
+                                mediaMetadata = mediaMetadata,
+                                isPlaying = isPlaying,
+                                navController = navController,
+                                playerConnection = playerConnection,
+                                menuState = menuState,
+                                haptic = haptic,
+                                scope = scope,
+                                onOpenRemoteItem = { itemId -> onAction(HomeAction.OpenRemoteItem(itemId)) },
                                 modifier = Modifier.animateItem(),
                             )
                         }
@@ -476,24 +571,14 @@ private fun HomeContent(
                         }
                     }
 
-                    uiState.similarRecommendations.forEach { recommendation ->
-                        sectionSpacer("similar_${recommendation.title.id}")
+                    if (uiState.similarRecommendations.isNotEmpty()) {
+                        sectionSpacer("similar_recommendations")
                         item(
-                            key = "home_similar_header_${recommendation.title.id}",
-                            contentType = "section_header",
-                        ) {
-                            SimilarRecommendationsTitle(
-                                recommendation = recommendation,
-                                navController = navController,
-                                modifier = Modifier.animateItem(),
-                            )
-                        }
-                        item(
-                            key = "home_similar_${recommendation.title.id}",
-                            contentType = "media_shelf",
+                            key = "home_similar_recommendations",
+                            contentType = "discovery_decks",
                         ) {
                             SimilarRecommendationsSection(
-                                recommendation = recommendation,
+                                recommendations = uiState.similarRecommendations,
                                 mediaMetadata = mediaMetadata,
                                 isPlaying = isPlaying,
                                 navController = navController,
@@ -506,36 +591,48 @@ private fun HomeContent(
                         }
                     }
 
-                    uiState.homePage?.sections.orEmpty().forEachIndexed { index, section ->
-                        val sectionKey = "${section.endpoint?.browseId ?: section.title}_$index"
-                        sectionSpacer("remote_$sectionKey")
-                        item(
-                            key = "home_remote_header_$sectionKey",
-                            contentType = "section_header",
-                        ) {
-                            HomePageSectionTitle(
-                                section = section,
-                                navController = navController,
-                                modifier = Modifier.animateItem(),
-                            )
+                    uiState.homePage
+                        ?.sections
+                        .orEmpty()
+                        .filter(HomePage.Section::hasVisibleContent)
+                        .forEachIndexed { index, section ->
+                            val sectionKey = "${section.endpoint?.browseId ?: section.title}_$index"
+                            sectionSpacer("remote_$sectionKey")
+                            item(
+                                key = "home_remote_header_$sectionKey",
+                                contentType = "section_header",
+                            ) {
+                                val playAll =
+                                    remember(section.playEndpoint, playerConnection) {
+                                        section.playEndpoint?.let { endpoint ->
+                                            { playerConnection.playQueue(YouTubeQueue.playlist(endpoint)) }
+                                        }
+                                    }
+                                HomePageSectionTitle(
+                                    section = section,
+                                    navController = navController,
+                                    onPlayAll = playAll,
+                                    modifier = Modifier.animateItem(),
+                                )
+                            }
+                            item(
+                                key = "home_remote_$sectionKey",
+                                contentType = "media_shelf",
+                            ) {
+                                HomePageSectionContent(
+                                    section = section,
+                                    mediaMetadata = mediaMetadata,
+                                    isPlaying = isPlaying,
+                                    navController = navController,
+                                    playerConnection = playerConnection,
+                                    menuState = menuState,
+                                    haptic = haptic,
+                                    scope = scope,
+                                    onOpenRemoteItem = { itemId -> onAction(HomeAction.OpenRemoteItem(itemId)) },
+                                    modifier = Modifier.animateItem(),
+                                )
+                            }
                         }
-                        item(
-                            key = "home_remote_$sectionKey",
-                            contentType = "media_shelf",
-                        ) {
-                            HomePageSectionContent(
-                                section = section,
-                                mediaMetadata = mediaMetadata,
-                                isPlaying = isPlaying,
-                                navController = navController,
-                                playerConnection = playerConnection,
-                                menuState = menuState,
-                                haptic = haptic,
-                                scope = scope,
-                                modifier = Modifier.animateItem(),
-                            )
-                        }
-                    }
 
                     if (uiState.isLoadingMore) {
                         item(

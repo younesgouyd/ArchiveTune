@@ -63,6 +63,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -79,6 +80,7 @@ fun DefaultDialog(
     buttons: (@Composable RowScope.() -> Unit)? = null,
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     contentScrollable: Boolean = false,
+    constrainContentHeight: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Dialog(
@@ -104,12 +106,13 @@ fun DefaultDialog(
                     modifier = modifier.padding(24.dp),
                 ) {
                     val bodyModifier =
-                        if (contentScrollable) {
-                            Modifier
-                                .weight(1f, fill = false)
-                                .verticalScroll(rememberScrollState())
-                        } else {
-                            Modifier
+                        when {
+                            contentScrollable ->
+                                Modifier
+                                    .weight(1f, fill = false)
+                                    .verticalScroll(rememberScrollState())
+                            constrainContentHeight -> Modifier.weight(1f, fill = false)
+                            else -> Modifier
                         }
 
                     Column(
@@ -316,11 +319,16 @@ fun TextFieldDialog(
     icon: (@Composable () -> Unit)? = null,
     title: (@Composable () -> Unit)? = null,
     initialTextFieldValue: TextFieldValue = TextFieldValue(), // legacy
+    textFieldValue: String? = null,
+    onTextFieldValueChange: ((String) -> Unit)? = null,
     placeholder: @Composable (() -> Unit)? = null,
     singleLine: Boolean = true,
     autoFocus: Boolean = true,
+    enabled: Boolean = true,
+    dismissOnDone: Boolean = true,
     maxLines: Int = if (singleLine) 1 else 10,
     keyboardOptions: KeyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+    visualTransformation: VisualTransformation = VisualTransformation.None,
     isInputValid: (String) -> Boolean = { it.isNotEmpty() },
     onDone: (String) -> Unit = {},
     // new multi-field support
@@ -331,6 +339,7 @@ fun TextFieldDialog(
     extraContent: (@Composable () -> Unit)? = null,
 ) {
     val legacyFieldState = remember { mutableStateOf(initialTextFieldValue) }
+    val currentLegacyValue = textFieldValue ?: legacyFieldState.value.text
 
     val focusRequester = remember { FocusRequester() }
 
@@ -354,17 +363,19 @@ fun TextFieldDialog(
 
             val isValid =
                 textFields?.all { isInputValid(it.second.text) }
-                    ?: isInputValid(legacyFieldState.value.text)
+                    ?: isInputValid(currentLegacyValue)
 
             TextButton(
-                enabled = isValid,
+                enabled = enabled && isValid,
                 onClick = {
                     if (textFields != null && onDoneMultiple != null) {
                         onDoneMultiple(textFields.map { it.second.text })
                     } else {
-                        onDone(legacyFieldState.value.text)
+                        onDone(currentLegacyValue)
                     }
-                    onDismiss()
+                    if (dismissOnDone) {
+                        onDismiss()
+                    }
                 },
                 shapes = ButtonDefaults.shapes(),
             ) {
@@ -379,16 +390,21 @@ fun TextFieldDialog(
                         value = value,
                         onValueChange = { onTextFieldsChange?.invoke(index, it) },
                         placeholder = { Text(label) },
+                        enabled = enabled,
                         singleLine = singleLine,
                         maxLines = maxLines,
                         colors = OutlinedTextFieldDefaults.colors(),
                         keyboardOptions = keyboardOptions,
+                        visualTransformation = visualTransformation,
                         keyboardActions =
                             KeyboardActions(
                                 onDone = {
-                                    if (onDoneMultiple != null) {
+                                    val areFieldsValid = textFields.all { isInputValid(it.second.text) }
+                                    if (enabled && areFieldsValid && onDoneMultiple != null) {
                                         onDoneMultiple(textFields.map { it.second.text })
-                                        onDismiss()
+                                        if (dismissOnDone) {
+                                            onDismiss()
+                                        }
                                     }
                                 },
                             ),
@@ -401,18 +417,30 @@ fun TextFieldDialog(
                 }
             } else {
                 TextField(
-                    value = legacyFieldState.value,
-                    onValueChange = { legacyFieldState.value = it },
+                    value = currentLegacyValue,
+                    onValueChange = { value ->
+                        if (onTextFieldValueChange != null) {
+                            onTextFieldValueChange(value)
+                        } else {
+                            legacyFieldState.value = TextFieldValue(value)
+                        }
+                    },
                     placeholder = placeholder,
+                    enabled = enabled,
                     singleLine = singleLine,
                     maxLines = maxLines,
                     colors = OutlinedTextFieldDefaults.colors(),
                     keyboardOptions = keyboardOptions,
+                    visualTransformation = visualTransformation,
                     keyboardActions =
                         KeyboardActions(
                             onDone = {
-                                onDone(legacyFieldState.value.text)
-                                onDismiss()
+                                if (enabled && isInputValid(currentLegacyValue)) {
+                                    onDone(currentLegacyValue)
+                                    if (dismissOnDone) {
+                                        onDismiss()
+                                    }
+                                }
                             },
                         ),
                     modifier =

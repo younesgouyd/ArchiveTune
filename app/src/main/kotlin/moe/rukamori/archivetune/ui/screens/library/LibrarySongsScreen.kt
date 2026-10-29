@@ -65,8 +65,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import coil3.compose.AsyncImage
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
 import moe.rukamori.archivetune.R
@@ -80,10 +80,11 @@ import moe.rukamori.archivetune.constants.SongSortTypeKey
 import moe.rukamori.archivetune.extensions.toMediaItem
 import moe.rukamori.archivetune.extensions.togglePlayPause
 import moe.rukamori.archivetune.playback.queues.ListQueue
-import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
+import moe.rukamori.archivetune.ui.component.ItemThumbnail
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.menu.SongMenu
 import moe.rukamori.archivetune.ui.screens.library.rememberArtworkGradient
+import moe.rukamori.archivetune.ui.screens.Screens
 import moe.rukamori.archivetune.ui.utils.ItemWrapper
 import moe.rukamori.archivetune.utils.makeTimeString
 import moe.rukamori.archivetune.utils.rememberEnumPreference
@@ -115,11 +116,14 @@ fun LibrarySongsScreen(
     val (sortDescending, onSortDescendingChange) = rememberPreference(SongSortDescendingKey, true)
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
 
-    val songs by viewModel.allSongs.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val songs by viewModel.allSongs.collectAsStateWithLifecycle()
+    val refreshState by viewModel.refreshState.collectAsStateWithLifecycle()
 
     var filter by rememberEnumPreference(SongFilterKey, SongFilter.LIKED)
+    val refreshLibrary = remember(viewModel, filter) { { viewModel.refresh(filter) } }
+    val onRefreshErrorShown = remember(viewModel) { { viewModel.onRefreshErrorShown() } }
     val lazyListState = rememberLazyListState()
+    val openSearch = remember(navController) { { navController.navigate(Screens.Search.route) } }
 
     // Issue 2: player-aware bottom padding so content is never hidden behind nav bar + miniplayer
     val playerAwareBottomPadding =
@@ -161,12 +165,19 @@ fun LibrarySongsScreen(
             }
         }
 
-    ExpressivePullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = { viewModel.refresh(filter) },
+    LibraryRefreshContainer(
+        state = refreshState,
+        onRefresh = refreshLibrary,
+        onErrorShown = onRefreshErrorShown,
         modifier = Modifier.fillMaxSize(),
+        indicatorOffset = LibraryPullToRefreshIndicatorOffset,
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = LibraryHeaderContentPadding),
+        ) {
             // Sub-Filters Row (All Songs, Downloaded, Liked)
             Row(
                 modifier =
@@ -404,6 +415,16 @@ fun LibrarySongsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
+                if (filteredSongs.isEmpty()) {
+                    item(key = "songs_empty", contentType = "library_empty_state") {
+                        LibraryEmptyState(
+                            iconRes = R.drawable.music_note,
+                            actionLabelRes = R.string.search_yt_music,
+                            onAction = openSearch,
+                        )
+                    }
+                }
+
                 itemsIndexed(
                     items = filteredSongs,
                     key = { _, item -> item.item.song.id },
@@ -471,15 +492,16 @@ fun LibrarySongsScreen(
                     ) {
                         // Thumbnail — fully circular when active
                         val thumbCorner = if (isActive) 26.dp else 10.dp
-                        AsyncImage(
-                            model = song.song.thumbnailUrl,
-                            contentDescription = null,
+                        ItemThumbnail(
+                            thumbnailUrl = song.song.thumbnailUrl,
+                            isActive = isActive,
+                            isPlaying = isPlaying,
+                            shape = RoundedCornerShape(thumbCorner),
                             contentScale = ContentScale.Crop,
+                            showPlaceholder = true,
                             modifier =
                                 Modifier
-                                    .size(52.dp)
-                                    .clip(RoundedCornerShape(thumbCorner))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    .size(52.dp),
                         )
 
                         Spacer(modifier = Modifier.width(14.dp))

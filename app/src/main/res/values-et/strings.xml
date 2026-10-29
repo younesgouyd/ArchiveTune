@@ -47,7 +47,6 @@
     <string name="remove_download_playlist_confirm">Kas sa kindlasti soovid kõik „%s“ esitusloendi lood eemaldada allalaaditud lugude andmekogust?</string>
     <string name="delete_playlist_confirm">Kas sa kindlasti soovid kustutada „%s“ esitusloendi?</string>
     <string name="retry">Proovi uuesti</string>
-    <string name="radio">Raadio</string>
     <string name="shuffle">Sega lood</string>
     <string name="reset">Lähtesta</string>
     <string name="details">Üksikasjad</string>
@@ -143,9 +142,7 @@
         <item quantity="one">1 minut</item>
         <item quantity="other">%d minutit</item>
     </plurals>
-    <string name="error_no_stream">Meediavoogu pole saadaval</string>
     <string name="error_no_internet">Võrguühendus puudub</string>
-    <string name="error_timeout">Aegumine</string>
     <string name="error_unknown">Tundmatu viga</string>
     <string name="action_like">Meeldib</string>
     <string name="action_remove_like">Eemalda meeldivaks märkimine</string>

@@ -24,28 +24,36 @@ import coil3.request.allowHardware
 import coil3.request.crossfade
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import moe.rukamori.archivetune.canvas.ArchiveTuneCanvas
+import moe.rukamori.archivetune.appicon.RestoreLauncherEntryUseCase
+import moe.rukamori.archivetune.canvas.StartCanvasPolicyUseCase
 import moe.rukamori.archivetune.constants.*
+import moe.rukamori.archivetune.downloads.DownloadedArtworkRepository
 import moe.rukamori.archivetune.extensions.*
+import moe.rukamori.archivetune.gatekeeper.GatekeeperResult
+import moe.rukamori.archivetune.gatekeeper.RunGatekeeperCheckUseCase
 import moe.rukamori.archivetune.innertube.YouTube
 import moe.rukamori.archivetune.innertube.models.YouTubeLocale
 import moe.rukamori.archivetune.kugou.KuGou
 import moe.rukamori.archivetune.lastfm.LastFM
 import moe.rukamori.archivetune.paxsenix.PaxsenixLyrics
+import moe.rukamori.archivetune.playback.stream.YoutubeiStreamRepository
 import moe.rukamori.archivetune.scrobbling.LastFmServiceConfig
 import moe.rukamori.archivetune.storage.StorageFolderKind
 import moe.rukamori.archivetune.storage.StorageLocationRepository
-import moe.rukamori.archivetune.ui.player.CanvasArtworkPlaybackCache
 import moe.rukamori.archivetune.ui.screens.settings.ThemePalettes
 import moe.rukamori.archivetune.ui.theme.ThemeSeedPalette
 import moe.rukamori.archivetune.ui.theme.ThemeSeedPaletteCodec
+import moe.rukamori.archivetune.utils.PlaylistCoverInterceptor
 import moe.rukamori.archivetune.utils.PreferenceStore
 import moe.rukamori.archivetune.utils.ProxyUtils
 import moe.rukamori.archivetune.utils.YTPlayerUtils
@@ -63,12 +71,31 @@ import java.io.StringWriter
 import java.net.Proxy
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
+import javax.inject.Inject
 import kotlin.system.exitProcess
 
 @HiltAndroidApp
 class App :
     Application(),
     SingletonImageLoader.Factory {
+    @Inject
+    lateinit var runGatekeeperCheckUseCase: RunGatekeeperCheckUseCase
+
+    @Inject
+    lateinit var downloadedArtworkRepository: DownloadedArtworkRepository
+
+    @Inject
+    lateinit var playlistCoverInterceptor: PlaylistCoverInterceptor
+
+    @Inject
+    lateinit var youtubeiStreamRepository: YoutubeiStreamRepository
+
+    @Inject
+    lateinit var startCanvasPolicy: StartCanvasPolicyUseCase
+
+    @Inject
+    lateinit var restoreLauncherEntry: RestoreLauncherEntryUseCase
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     @Volatile private var isInitialized = false
@@ -96,6 +123,7 @@ class App :
         }
         BotGuardTokenGenerator.initialize(this)
         PreferenceStore.start(this)
+        LeakCanaryController.initialize(this)
         Timber.plant(Timber.DebugTree())
         try {
             Timber.plant(
@@ -105,18 +133,47 @@ class App :
         } catch (_: Exception) {
         }
 
+        initializeGatekeeper()
         initializeCriticalSync()
         initializeDeferredAsync()
+        initializeLauncherEntry()
+    }
+
+    private fun initializeLauncherEntry() {
+        if (BuildConfig.DEVICE == "automotive") return
+        applicationScope.launch(Dispatchers.IO) {
+            try {
+                restoreLauncherEntry()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                Timber.e(error, "Unable to restore launcher entry")
+                reportException(error)
+            }
+        }
+    }
+
+    private fun initializeGatekeeper() {
+        applicationScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                val result = runGatekeeperCheckUseCase()
+                when (result) {
+                    GatekeeperResult.Allowed -> return@launch
+                    GatekeeperResult.Unavailable -> Unit
+                    is GatekeeperResult.Blocked -> if (!result.retryable) return@launch
+                }
+                delay(GATEKEEPER_RETRY_INTERVAL_MILLIS)
+            }
+        }
     }
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        // WebView cleanup happens automatically on process death
+        youtubeiStreamRepository.trimMemory(level)
     }
 
     private fun initializeCriticalSync() {
-        CanvasArtworkPlaybackCache.init(this)
-        ArchiveTuneCanvas.initialize(BuildConfig.CANVAS_BEARER_TOKEN)
+        startCanvasPolicy.start(applicationScope)
         PaxsenixLyrics.setUserAgent("ArchiveTune", BuildConfig.VERSION_NAME)
 
         val locale = Locale.getDefault()
@@ -141,6 +198,16 @@ class App :
     private fun initializeDeferredAsync() {
         applicationScope.launch(Dispatchers.IO) {
             try {
+                youtubeiStreamRepository.preWarm()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (throwable: Throwable) {
+                Timber.tag("YoutubeiResolver").w(throwable, "youtubei.js runtime prewarm failed")
+            }
+        }
+
+        applicationScope.launch(Dispatchers.IO) {
+            try {
                 val prefs = dataStore.data.first()
 
                 prefs[ContentCountryKey]?.takeIf { it != SYSTEM_DEFAULT }?.let { country ->
@@ -150,6 +217,7 @@ class App :
                     YouTube.locale = YouTube.locale.copy(hl = lang)
                 }
 
+                PaxsenixLyrics.setApiKey(prefs[PaxsenixApiKeyKey].orEmpty())
                 LastFmServiceConfig.fromPreferences(prefs).apply(prefs[LastFMSessionKey])
 
                 ProxyUtils.applyYouTubeProxy(
@@ -162,24 +230,8 @@ class App :
                 )
                 YouTube.streamBypassProxy = YouTube.proxy != null && prefs[StreamBypassProxyKey] == true
 
-                if (prefs[IpRotationEnabledKey] == true) {
-                    try {
-                        YouTube.enableIpRotation()
-                    } catch (e: Exception) {
-                        reportException(e)
-                    }
-                }
-
                 if (prefs[UseLoginForBrowse] != false) {
                     YouTube.useLoginForBrowse = true
-                }
-
-                // Pre-warm BotGuard token generator
-                val initialVisitor = prefs[VisitorDataKey] ?: YouTube.visitorData
-                if (!initialVisitor.isNullOrBlank()) {
-                    applicationScope.launch(Dispatchers.IO) {
-                        BotGuardTokenGenerator.preWarm(initialVisitor)
-                    }
                 }
 
                 // Apply random theme on startup if enabled
@@ -246,10 +298,8 @@ class App :
                     YouTube.authState = authState
                     if (previousFingerprint != authState.fingerprint) {
                         YTPlayerUtils.clearPlaybackAuthCaches()
-                        val newSessionId = authState.sessionId
-                        if (!newSessionId.isNullOrBlank()) {
-                            BotGuardTokenGenerator.preWarm(newSessionId)
-                        }
+                        youtubeiStreamRepository.invalidateSessions()
+                        YTPlayerUtils.preWarmYoutubeiPoTokens(authState)
                     }
                 }
         }
@@ -273,33 +323,35 @@ class App :
                 }
         }
 
-        try {
-            Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-                try {
-                    val sw = StringWriter()
-                    val pw = PrintWriter(sw)
-                    throwable.printStackTrace(pw)
-                    val stack = sw.toString()
-
-                    val intent =
-                        Intent(this@App, DebugActivity::class.java).apply {
-                            putExtra(DebugActivity.EXTRA_STACK_TRACE, stack)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                        }
-                    startActivity(intent)
+        if (BuildConfig.DEVICE != "automotive") {
+            try {
+                Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
                     try {
-                        Thread.sleep(100)
-                    } catch (_: InterruptedException) {
+                        val sw = StringWriter()
+                        val pw = PrintWriter(sw)
+                        throwable.printStackTrace(pw)
+                        val stack = sw.toString()
+
+                        val intent =
+                            Intent(this@App, DebugActivity::class.java).apply {
+                                putExtra(DebugActivity.EXTRA_STACK_TRACE, stack)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                            }
+                        startActivity(intent)
+                        try {
+                            Thread.sleep(100)
+                        } catch (_: InterruptedException) {
+                        }
+                    } catch (e: Exception) {
+                        reportException(e)
+                    } finally {
+                        android.os.Process.killProcess(android.os.Process.myPid())
+                        exitProcess(2)
                     }
-                } catch (e: Exception) {
-                    reportException(e)
-                } finally {
-                    android.os.Process.killProcess(android.os.Process.myPid())
-                    exitProcess(2)
                 }
+            } catch (e: Exception) {
+                reportException(e)
             }
-        } catch (e: Exception) {
-            reportException(e)
         }
         applicationScope.launch(Dispatchers.IO) {
             dataStore.data
@@ -333,6 +385,10 @@ class App :
             .allowHardware(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
             .diskCache(diskCache)
             .diskCachePolicy(imageCacheConfig.policy)
+            .components {
+                add(playlistCoverInterceptor)
+                add(downloadedArtworkRepository.coilMapper())
+            }
             .build()
     }
 
@@ -363,6 +419,8 @@ class App :
     }
 
     companion object {
+        private const val GATEKEEPER_RETRY_INTERVAL_MILLIS = 30_000L
+
         lateinit var instance: App
             private set
 

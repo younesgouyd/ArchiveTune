@@ -40,12 +40,6 @@
     <string name="filter_featured_playlists">פלייליסטים נבחרים</string>
     <string name="no_results_found">לא נמצאו תוצאות</string>
     <string name="top_results">תוצאות מובילות</string>
-    <string name="library_title">הספרייה שלך</string>
-    <string name="library_subtitle">המוזיקה שלך, מאורגנת בשבילך</string>
-    <string name="library_playlists_subtitle">כל הפלייליסטים שלך, מאורגנים בשבילך</string>
-    <string name="library_songs_subtitle">כל השירים שלך, מאורגנים בשבילך</string>
-    <string name="library_artists_subtitle">כל האמנים שלך, במקום אחד</string>
-    <string name="library_albums_subtitle">כל האלבומים שלך, מאורגנים פיקס</string>
     <string name="most_played_badge">המושמע ביותר</string>
     <string name="play_all">נגן הכל</string>
     <string name="offline_shortcut">לא מקוון</string>
@@ -106,7 +100,6 @@
     <string name="remove_from_speed_dial">מחיקה מהפעלה מהירה</string>
     <string name="together_requesting_song_change">מבקש מהמארח לשנות את השיר…</string>
     <string name="palette_youtube_red">Youtube</string>
-    <string name="error_malformed_stream">שגיאת מקור</string>
     <string name="palette_mint_fresh">מנטה</string>
     <string name="storage">אחסון</string>
     <string name="disable_blur_desc">השבתת אפקטים של טשטוש בכל האפליקציה</string>
@@ -117,8 +110,6 @@
     <string name="palette_blush">סומק</string>
     <string name="save">שמירה</string>
     <string name="downloaded_songs">שירים שהורדו</string>
-    <string name="ip_rotation_loading">טוען רשימת פרוקסים</string>
-    <string name="playback_login_refresh_required">רענון כניסה ל- YouTube Music</string>
     <string name="palette_ocean">אוקיינוס</string>
     <string name="view_album">ראה אלבום</string>
     <string name="repeat_mode_off">מצב חזרה כבוי</string>
@@ -135,9 +126,7 @@
     <string name="smart_trimmer_description">גוזם חכם מנהל באופן דינמי את מטמון התמונות ומטמון השירים, וגוזם ערכים ישנים כדי לחסוך מקום בדיסק.</string>
     <string name="palette_electric_blue">כחול חשמלי</string>
     <string name="pitch_mode_semitones_short">חצי טון</string>
-    <string name="radio">רדיו</string>
     <string name="reset">איפוס</string>
-    <string name="tap_to_activate_equalizer">הקש כדי להפעיל את האקולייזר</string>
     <string name="song_cache">מטמון שירים</string>
     <string name="lyrics_line_spacing">ריווח שורות בין מילות השיר</string>
     <string name="error_no_internet">אין חיבור רשת</string>
@@ -152,7 +141,6 @@
     <string name="together_ban">חסימה</string>
     <string name="action_logout">התנתק</string>
     <string name="image_cache">מטמון תמונה</string>
-    <string name="error_timeout">פסק זמן</string>
     <string name="cancel_button">ביטול</string>
     <string name="lyrics_not_found">מילות השיר לא נמצאו</string>
     <string name="palette_mango">מנגו</string>
@@ -192,7 +180,6 @@
     <string name="disable_animations">השבתת הנפשות</string>
     <string name="palette_cyberpunk">סייברפאנק</string>
     <string name="added_n_songs_to_n_playlists">נוספו %1$d שירים ל%2$d פלייליסטים</string>
-    <string name="playback_requires_youtube_music_confirmation">אשר את ההפעלה ב- YouTube Music, ולאחר מכן חזור אל ArchiveTune.</string>
     <string name="proxy_connection_failed">חיבור הפרוקסי נכשל: %s</string>
     <string name="font_preference_default">ברירת מחדל</string>
     <string name="unknown">לא ידוע</string>
@@ -202,7 +189,6 @@
     <string name="haptics">רטט</string>
     <string name="palette_clay">חימר</string>
     <string name="corner_radius">רדיוס פינה: %1$d</string>
-    <string name="eq_system_preset">הגדרת מערכת</string>
     <string name="audio_offload_desc">אפשר למכשירים נתמכים להשמיע אודיו באמצעות פענוח חומרה בעל צריכת אנרגיה נמוכה. חלק מתכונות עיבוד השמע מושבתות.</string>
     <string name="content_language">שפת תוכן ברירת מחדל</string>
     <string name="enable_unison_lyrics">הפעלת Unison lyrics</string>
@@ -218,7 +204,6 @@
     <string name="palette_midnight_navy">כחול נייבי</string>
     <string name="unlimited">ללא הגבלה</string>
     <string name="palette_terracotta">טרה קוטה</string>
-    <string name="could_not_open_youtube_music">לא ניתן היה לפתוח את YouTube Music</string>
     <plurals name="n_playlist">
         <item quantity="one">פלייליסט אחד</item>
         <item quantity="two">שני פלייליסטים</item>
@@ -234,7 +219,6 @@
     <string name="smart_trimmer">גוזם חכם</string>
     <string name="appearance">מראה</string>
     <string name="show_button1_description">הפעלת כפתור 1 ב- Discord Rich Presence</string>
-    <string name="ip_rotation_refresh">רענן כתובת IP</string>
     <string name="dns_provider">ספק DNS</string>
     <string name="auto_start_on_bluetooth">הפעלה אוטומטית בחיבור Bluetooth</string>
     <string name="queue_continue_playing">המשך הפעלה</string>
@@ -283,7 +267,6 @@
     <string name="together_connected_count">%1$d מחוברים</string>
     <string name="download_progress_percent">%1$d%%</string>
     <string name="widget_previous">קודם</string>
-    <string name="error_no_stream">אין סטרימינג זמין</string>
     <plurals name="n_album">
         <item quantity="one">אלבום אחד</item>
         <item quantity="two">שני אלבומים</item>
@@ -291,7 +274,7 @@
     </plurals>
     <string name="eq_profiles">פרופילים</string>
     <string name="retry">נסה שוב</string>
-    <string name="archivetune_canvas_desc">הנפשת גרפיקת אלבום בזמן נגינה (מופעל על ידי BetterLyrics)</string>
+    <string name="archivetune_canvas_desc">הנפשת גרפיקת אלבום בזמן נגינה</string>
     <string name="queue">תור</string>
     <string name="dns_custom_url">כתובת URL מותאמת אישית של DNS DoH</string>
     <string name="together_waiting_approval">ממתין לאישור</string>
@@ -303,9 +286,8 @@
     <string name="player_and_audio">נגן ואודיו</string>
     <string name="palette_sand">חול</string>
     <string name="persistent_queue">תור מתמיד</string>
-    <string name="ip_rotation_active_proxies">%d פרוקסים פעילים</string>
     <string name="palette_synthwave">גלי סינת\'</string>
-    <string name="low_data_mode_description">מפחית את השימוש בנתונים ניידים על ידי שימוש בסטרימינג באיכות נמוכה והשבתת טעינה מוקדמת של מטמון השמעה, קנבס ומילות רקע ברשתות מדודות</string>
+    <string name="low_data_mode_description">מפחית את השימוש בנתונים ניידים באמצעות סטרימינג באיכות נמוכה והשבתת מטמון ההפעלה והקנבס ברשתות מדודות</string>
     <string name="eq_profile_name">שם הפרופיל</string>
     <string name="eq_import_failed">נתוני פרופיל לא תקינים</string>
     <string name="sleep_timer">טיימר שינה</string>
@@ -336,7 +318,6 @@
     <string name="palette_pastel_blue">כחול פסטל</string>
     <string name="sort_by_create_date">תאריך הוספה</string>
     <string name="palette_emerald_green">אמרלד</string>
-    <string name="ip_rotation_desc">סובב את כתובת ה-IP הנוכחית כאשר מתרחשות בעיות השמעה או תוכן.</string>
     <string name="details">פרטים</string>
     <string name="pure_black">שחור טהור</string>
     <string name="eq_bands">ערוצים</string>
@@ -385,7 +366,6 @@
     <string name="end_of_song">סוף השיר</string>
     <string name="pitch_mode_multiplier_short">x</string>
     <string name="bitrate">קצב סיביות</string>
-    <string name="eq_save">שמירה</string>
     <string name="start_radio">התחל רדיו</string>
     <string name="view_all">הצג הכל</string>
     <string name="default_open_tab">כרטיסייה פתוחה כברירת מחדל</string>
@@ -398,7 +378,6 @@
     <string name="player_background_style_v8_v9_desc">אינו זמין עם סגנונות נגן V8 וV9</string>
     <string name="slider_style_circular">מעוגל</string>
     <string name="song_artists">אמני שיר</string>
-    <string name="enable_paxsenix_lyrics">הפעלת Paxsenix lyrics</string>
     <string name="palette_lavender_dream">לוונדר</string>
     <string name="file_size">גודל קובץ</string>
     <string name="pin_to_speed_dial">הצמדה להפעלה מהירה</string>
@@ -428,7 +407,6 @@
     <string name="palette_spring">אביב</string>
     <string name="login">התחברות</string>
     <string name="content_country">מדינת תוכן ברירת מחדל</string>
-    <string name="eq_manual">ידני</string>
     <string name="media_id">מזהה מדיה</string>
     <string name="remove_from_library">הסר מהספרייה</string>
     <string name="together_role_host">מארח</string>
@@ -442,7 +420,6 @@
     <string name="palette_pastel_green">ירוק פסטל</string>
     <string name="sample_rate">קצב דגימה</string>
     <string name="font_preference">גופן</string>
-    <string name="ip_rotation">רוטציית IP</string>
     <string name="play">נגן</string>
     <string name="dark_theme_off">כבוי</string>
     <string name="together_host_left_session">המארח עזב את המפגש</string>
@@ -450,7 +427,6 @@
     <string name="palette_cobalt_blue">כחול קובלט</string>
     <string name="discord_activity_type">סוג פעילות</string>
     <string name="persistent_queue_desc">שחזר את התור האחרון שלך בעת הפעלת האפליקציה</string>
-    <string name="aod_mode_exit">יציאה מ- AOD</string>
     <string name="loudness">עוצמה</string>
     <string name="palette_peach">אפרסק</string>
     <string name="player">נגָן</string>
@@ -461,9 +437,7 @@
     </plurals>
     <string name="palette_crimson_red">ארגמן</string>
     <string name="permanent_shuffle">מצב ערבוב קבוע</string>
-    <string name="ip_rotation_refreshing">מרענן כתובת IP</string>
     <string name="delete_playlist_confirm">האם אתה באמת רוצה למחוק את פלייליסט \"%s\"?</string>
-    <string name="playback_confirmation_required">נדרש אישור הפעלה</string>
     <string name="palette_royal_purple">סגול מלכותי</string>
     <string name="together_pending_approval">ממתין לאישור</string>
     <string name="audio_quality_low">נמוכה</string>
@@ -478,7 +452,6 @@
     <string name="enable_dynamic_theme">הפעלת ערכת נושא דינמית</string>
     <string name="queue_searched_songs">שירים שחיפשת</string>
     <string name="liked_songs">שירים מועדפים</string>
-    <string name="eq_profile_hint">החל פרופיל או שמור את ההגדרות הנוכחיות שלך</string>
     <string name="palette_magenta_pop">מנג\'טה</string>
     <string name="external_downloader">מוריד חיצוני</string>
     <string name="palette_teal_wave">טורקיז</string>
@@ -505,7 +478,6 @@
     <string name="palette_candy">סוכריה</string>
     <string name="eq_import_success">%1$d פרופילים מיובאים</string>
     <string name="error_unknown">שגיאה לא ידועה</string>
-    <string name="playback_requires_youtube_music_login_refresh">רענן את פרטי ההתחברות שלך ל- YouTube Music, ולאחר מכן חזור אל ArchiveTune.</string>
     <string name="removed_n_songs_from_queue">הוסרו \'\'%d\'\' שירים מהתור</string>
     <string name="remove_from_playlist">הסר מהפלייליסט</string>
     <string name="font_preference_system">מערכת</string>
@@ -569,8 +541,6 @@
     <string name="disable_screenshot_desc">כאשר אפשרות זו מופעלת, צילומי מסך ותצוגת האפליקציה תחת \'אחרונים\' מושבתות.</string>
     <string name="enable_lrclib">הפעלת ספק מילות השיר LrcLib</string>
     <string name="enable_kugou">הפעלת ספק מילות השיר KuGou</string>
-    <string name="preload_queue_lyrics">טעינה מוקדמת של מילות השירים בתור</string>
-    <string name="queue_lyrics_preload_count">מספר שירים לטעינה מראש</string>
     <string name="display">תצוגה</string>
     <string name="romanization">רומניזציה</string>
     <string name="hide_explicit">הסתרת תוכן בוטה</string>
@@ -660,14 +630,6 @@
     <string name="discord_presence_do_not_disturb">נא לא להפריע</string>
     <string name="discord_presence_idle">ללא פעילות</string>
     <string name="discord_presence_streaming">סטרימינג</string>
-    <string name="discord_platform_desktop">שולחן עבודה</string>
-    <string name="discord_platform_xbox">אקסבוקס</string>
-    <string name="discord_platform_samsung">סמסונג</string>
-    <string name="discord_platform_ios">iOS</string>
-    <string name="discord_platform_android">Android</string>
-    <string name="discord_platform_embedded">מוטמע</string>
-    <string name="discord_platform_ps4">PS4</string>
-    <string name="discord_platform_ps5">PS5</string>
     <string name="discord_activity_type_playing_label">מנגן</string>
     <string name="discord_activity_type_streaming_label">סטרימינג</string>
     <string name="discord_activity_type_listening_label">האזנה</string>
@@ -676,7 +638,6 @@
     <string name="discord_image_album_artwork">יצירת האמנות של האלבום</string>
     <string name="discord_image_artist_artwork">יצירות אמנות של אמן</string>
     <string name="activity_status">סטטוס פעילות</string>
-    <string name="platform_status">פלטפורמה</string>
     <string name="translator_options">אפשרויות מתרגם</string>
     <string name="enable_translator">הפעלת מתרגם</string>
     <string name="enable_translator_desc">תרגם שדות נבחרים לפני שליחה ל-Discord RPC</string>
@@ -712,9 +673,7 @@
     <string name="enable_discord_debug_lines">הפעל שורות הגדרות ניפוי שגיאות</string>
     <string name="presence_manager_running">מנהל נוכחות: פועל</string>
     <string name="presence_manager_stopped">מנהל נוכחות: הופסק</string>
-    <string name="filter_levels">רמות סינון</string>
     <string name="experimental_features">תכונות ניסיוניות</string>
-    <string name="reset_to_default_levels">איפוס לברירת מחדל</string>
     <string name="no_logs">אין יומני רישום</string>
     <string name="show_nerd_stats">הצג סטטיסטיקות לגיקים</string>
     <string name="description_show_nerd_stats">הצגת סטטיסטיקות השמעה בזמן אמת (קודק, קצב סיביות, מאגר)</string>
@@ -746,7 +705,6 @@
     <string name="log_level_info">מידע</string>
     <string name="log_level_warning">אזהרה</string>
     <string name="log_level_error">שגיאה</string>
-    <string name="filter_discord_only">דיסקורד</string>
     <string name="filter_all_logs">הכל</string>
     <string name="clear">נקה</string>
     <string name="logs_empty_message">יומנים יופיעו כאן כאשר יהיו זמינים</string>
@@ -759,27 +717,15 @@
     <string name="playback_state_unknown">לא ידוע</string>
     <string name="share_logs">שיתוף יומני רישום</string>
     <string name="about">אודות</string>
-    <string name="open_youtube_music">פתיחת YouTube Music</string>
     <string name="new_version_available">גרסה חדשה זמינה</string>
     <string name="updates">עדכונים</string>
-    <string name="updates_subtitle_stable">מהדורות יציבות והערות שחרור</string>
-    <string name="updates_subtitle_nightly">מהדורות לילה ופעולות פיתוח אחרונות</string>
     <string name="current_version">גרסה נוכחית</string>
     <string name="latest_version_format">אחרון: %s</string>
     <string name="updates_status_checking">בודק את הגרסה האחרונה</string>
     <string name="updates_status_current">אתה נמצא בגרסה הזמינה האחרונה</string>
     <string name="enable_update_notification">הפעל התראות עדכון</string>
-    <string name="enable_update_notification_desc">קבל הודעה כאשר יוצאת גרסה יציבה חדשה</string>
     <string name="update_channel">עדכון ערוץ</string>
-    <string name="update_channel_desc">בחרו בין גרסאות שנבדקו לבין תמונות מצב של פיתוח.</string>
-    <string name="channel_stable">יציב</string>
-    <string name="channel_nightly">לילי</string>
-    <string name="channel_daily_nightly">יומי</string>
     <string name="recent_commits">שינויים אחרונים</string>
-    <string name="updates_nightly_title">הפצה לילית</string>
-    <string name="updates_nightly_description">גרסאות לילה עוקבת אחר שינויים חדשים לפיתוח ועשויות לכלול שינויים שלא הושלמו.</string>
-    <string name="updates_nightly_hosting_description">גרסאות פיתוח שנוצרו אוטומטית זמינות לאחר ריצות מוצלחות של GitHub Actions.</string>
-    <string name="updates_latest_commit">שינוי אחרון: %s</string>
     <string name="updates_loading_commits">טוען את השינויים האחרונים</string>
     <string name="updates_recent_commits_count">%1$d שינויים אחרונים</string>
     <string name="updates_no_commits">לא נמצאו שינויים אחרונים</string>
@@ -825,8 +771,6 @@
     <string name="session_code">קוד סשן</string>
     <string name="add_current_song">הוסף את השיר הנוכחי</string>
     <string name="dismiss">התעלמות</string>
-    <string name="enabled">מופעל</string>
-    <string name="disabled">מושבת</string>
     <string name="invalid_link">קישור לא תקין</string>
     <string name="invalid_code">קוד לא תקין</string>
     <string name="not_allowed">אסור</string>
@@ -861,32 +805,6 @@
     <string name="together_welcome_join_body">פתחו את הקישור המשותף, או הזינו את הקוד והקישו על הצטרף. התור וההשמעה שלכם יעקבו אחר המארח.</string>
     <string name="together_welcome_permissions_title">הרשאות ובטיחות</string>
     <string name="together_welcome_permissions_body">מארחים יכולים להחליט אם אורחים יכולים להוסיף שירים, לשלוט בהפעלה או לדרוש אישור להצטרפות.</string>
-    <string name="po_token_generation">יצירת טוקן PO</string>
-    <string name="web_client_po_token">טוקן PO של לקוח אינטרנט</string>
-    <string name="web_client_po_token_desc">הפעלת יצירת טוקן PO עבור לקוחות שחקנים מבוססי אינטרנט</string>
-    <string name="po_token_gvs">טוקן PO (GVS)</string>
-    <string name="po_token_player">טוקן PO (שחקן)</string>
-    <string name="visitor_data">נתוני מבקרים</string>
-    <string name="supported_clients">לקוחות נתמכים</string>
-    <string name="generated_tokens">טוקנים שנוצרו</string>
-    <string name="token_settings">הגדרות טוקן</string>
-    <string name="use_visitor_data">שימוש בנתוני מבקרים</string>
-    <string name="use_visitor_data_desc">השתמש בנתוני מבקרים ליצירת טוקנים. דורש השבתת קובצי Cookie.</string>
-    <string name="cookies_must_be_disabled">יש להשבית קובצי Cookie כדי להשתמש בנתוני מבקרים</string>
-    <string name="regenerate">יצירה מחדש</string>
-    <string name="regenerate_token">צור מחדש טוקן</string>
-    <string name="source_url">כתובת URL של המקור</string>
-    <string name="source_url_placeholder">https://youtube.com/account</string>
-    <string name="generating_tokens">יוצר טוקנים</string>
-    <string name="tokens_generated">טוקנים נוצרו בהצלחה</string>
-    <string name="token_generation_failed">יצירת הטוקנים נכשלה</string>
-    <string name="open_account_before_extract">פתחו והיכנסו ל-youtube.com/account לפני החילוץ</string>
-    <string name="token_copied">הטוקן הועתק ללוח</string>
-    <string name="extracting_from_url">חילוץ טוקנים מכתובת URL</string>
-    <string name="po_token_account_notice_title">השתמש באותו חשבון</string>
-    <string name="po_token_account_notice_body">היכנס כאן עם אותו חשבון גוגל שבו אתה כבר משתמש עבור YouTube Music בתוך ArchiveTune לפני יצירת טוקן PO.</string>
-    <string name="po_token_account_notice_same_account">אם תצוגת WebView זו משתמשת בחשבון אחר, הטוקן שנוצר לא יפעל כהלכה.</string>
-    <string name="po_token_account_notice_mismatch">השתמש בחשבון התואם, סיימו את תהליך הכניסה, לאחר מכן פתחו את youtube.com/account וצרו את הטוקן מאותו דף.</string>
     <string name="saved_accounts">חשבונות שמורים</string>
     <string name="save_current_account">שמירת חשבון נוכחי</string>
     <string name="no_saved_accounts">עדיין אין חשבונות שמורים</string>
@@ -928,7 +846,6 @@
     <string name="no_playlists_yet">אין עדיין פלייליסטים</string>
     <string name="hide_playlist">הסתרת פלייליסט</string>
     <string name="unhide_playlist">ביטול הסתרת פלייליסט</string>
-    <string name="show_hidden_playlists">הצגת מוסתרים</string>
     <string name="hide_playlist_confirm">להסתיר את \"%1$s\" מהספרייה?</string>
     <string name="together_transfer_host">העברת מארח</string>
     <string name="together_approve">אישור</string>
@@ -937,22 +854,9 @@
     <string name="together_participant_joined_notification">%1$s הצטרף/ה לחדר</string>
     <string name="together_participant_left_notification">%1$s עזב/ה את החדר</string>
     <string name="together_unknown_participant">מישהו</string>
-    <string name="playback_error_code">קוד</string>
-    <string name="playback_error_http">HTTP</string>
-    <string name="playback_error_message">הודעה</string>
-    <string name="playback_error_cause">סיבה</string>
     <string name="discord_reauthorize_required_title">סשן Discord פג תוקפו</string>
     <string name="discord_reauthorize_required_description">לא ניתן להציג את Rich Presence עד שתאשר שוב את Discord.</string>
     <string name="discord_reauthorize_action">הרשאה מחדש</string>
-    <string name="updates_channel_warning_intro">ArchiveTune מספקת שני ערוצי הורדה עבור גרסאות הפצה:</string>
-    <string name="updates_channel_warning_stable_title">גרסאות הפצה יציבות</string>
-    <string name="updates_channel_warning_stable_source">מופץ דרך גרסאות GitHub רשמיות.</string>
-    <string name="updates_channel_warning_stable_desc">גרסאות אלו נבדקו ומומלצות עבור רוב המשתמשים.</string>
-    <string name="updates_channel_warning_nightly_title">גרסאות ליליות</string>
-    <string name="updates_channel_warning_nightly_risk">גרסאות ליליות עשויה לכלול תכונות ניסיוניות, שינויים לא גמורים או רגרסיות זמניות.</string>
-    <string name="updates_channel_warning_nightly_unstable">גרסאות ליליות מסופקות לבדיקה ולגישה מוקדמת בלבד.\nיציבות, תאימות ופונקציונליות אינן מובטחות.</string>
-    <string name="updates_channel_warning_acknowledgement">הערה: הורדה מ-Github עוקפת ישירות כל סינון נוסף שבוצע על ידי החנות שממנה ייתכן שהתקנת את האפליקציה במקור.\nבהמשך השימוש, הנך מאשר כי גרסאות ליליות עשויות להיות לא יציבות וכי השימוש בהן על אחריותך בלבד.</string>
-    <string name="updates_daily_channel_confirmation">עבור לערוץ היומי כדי לקבל עדכונים מהמאגר היומי-לילי.\n\nגרסאות יומיות מתפרסמות אוטומטית בכל יום מענף הפיתוח האחרון.\nהערה: הורדה מ-Github עוקפת ישירות כל סינון נוסף שבוצע על ידי החנות שממנה התקנת את האפליקציה במקור.</string>
     <string name="download_complete">ההורדה הושלמה</string>
     <string name="onboarding_welcome_title">ברוכים הבאים ל- ArchiveTune</string>
     <string name="onboarding_welcome_subtitle">הגדר השמעה, מוזיקה מקומית ועדכון הרשאות לפני שתתחיל להאזין.</string>

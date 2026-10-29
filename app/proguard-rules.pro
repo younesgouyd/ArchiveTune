@@ -12,13 +12,8 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-dontobfuscate
+-keepattributes SourceFile,LineNumberTable
 
 ## Kotlin Serialization
 # Keep `Companion` object fields of serializable classes.
@@ -52,9 +47,6 @@
 -dontwarn pl.droidsonroids.gif.**
 
 -dontwarn javax.servlet.ServletContainerInitializer
--dontwarn org.bouncycastle.jsse.BCSSLParameters
--dontwarn org.bouncycastle.jsse.BCSSLSocket
--dontwarn org.bouncycastle.jsse.provider.BouncyCastleJsseProvider
 -dontwarn org.conscrypt.Conscrypt$Version
 -dontwarn org.conscrypt.Conscrypt
 -dontwarn org.conscrypt.ConscryptHostnameVerifier
@@ -66,6 +58,8 @@
 ## Rules for NewPipeExtractor
 -keep class org.schabi.newpipe.extractor.services.youtube.protos.** { *; }
 -keep class org.schabi.newpipe.extractor.timeago.patterns.** { *; }
+-keep class org.schabi.newpipe.extractor.** { *; }
+-keepclassmembers class org.schabi.newpipe.extractor.** { *; }
 -keep class org.mozilla.javascript.** { *; }
 -keep class org.mozilla.javascript.engine.** { *; }
 -keep class org.mozilla.classfile.ClassFileWriter
@@ -75,6 +69,12 @@
 -dontwarn javax.script.**
 -keep class jdk.dynalink.** { *; }
 -dontwarn jdk.dynalink.**
+
+## Essential for reflection/deserialization
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
 
 ## Logging (does not affect Timber)
 -assumenosideeffects class android.util.Log {
@@ -145,7 +145,6 @@
 # internal Ktor HTTP Client
 -keep class io.ktor.** { *; }
 -dontwarn io.ktor.**
--keep class moe.rukamori.archivetune.moriextractor.BackendExtractorResponse { *; }
 
 # engine HTTP Android/OkHttp Ktor
 -dontwarn kotlinx.coroutines.**

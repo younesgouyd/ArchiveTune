@@ -11,24 +11,34 @@ import android.os.Bundle
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata.MEDIA_TYPE_MUSIC
+import androidx.media3.common.MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE
 import moe.rukamori.archivetune.db.entities.Song
+import moe.rukamori.archivetune.innertube.models.EpisodeItem
 import moe.rukamori.archivetune.innertube.models.SongItem
 import moe.rukamori.archivetune.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_OMV
 import moe.rukamori.archivetune.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_UGC
 import moe.rukamori.archivetune.models.MediaMetadata
 import moe.rukamori.archivetune.models.toMediaMetadata
 import moe.rukamori.archivetune.ui.utils.YTThumbQuality
+import moe.rukamori.archivetune.ui.utils.YtimgResizePolicy
 import moe.rukamori.archivetune.ui.utils.buildYTThumbnailUrl
 import moe.rukamori.archivetune.ui.utils.resize
+import moe.rukamori.archivetune.utils.NotificationArtworkSizePx
 import moe.rukamori.archivetune.utils.isLocalMediaId
 
 const val ExtraIsMusicVideo = "moe.rukamori.archivetune.extra.IS_MUSIC_VIDEO"
-private const val NotificationArtworkSizePx = 1080
+const val ExtraIsPodcast = "moe.rukamori.archivetune.extra.IS_PODCAST"
 
 val MediaItem.metadata: MediaMetadata?
     get() = localConfiguration?.tag as? MediaMetadata
 
-private fun String?.toNotificationArtworkUri() = this?.resize(NotificationArtworkSizePx, NotificationArtworkSizePx)?.toUri()
+private fun String?.toNotificationArtworkUri() =
+    this
+        ?.resize(
+            width = NotificationArtworkSizePx,
+            height = NotificationArtworkSizePx,
+            ytimgResizePolicy = YtimgResizePolicy.PreserveOriginal,
+        )?.toUri()
 
 private fun MediaItem.Builder.setCacheKeyIfRemote(mediaId: String): MediaItem.Builder {
     if (!mediaId.isLocalMediaId()) {
@@ -50,11 +60,26 @@ fun Song.toMediaItem() =
                 .setTitle(song.title)
                 .setSubtitle(artists.joinToString { it.name })
                 .setArtist(artists.joinToString { it.name })
-                .setArtworkUri(song.thumbnailUrl.toNotificationArtworkUri())
+                .setArtworkUri(
+                    if (song.isMusicVideo) {
+                        buildYTThumbnailUrl(song.id, YTThumbQuality.HQ).toUri()
+                    } else {
+                        song.thumbnailUrl.toNotificationArtworkUri()
+                    },
+                )
                 .setAlbumTitle(song.albumName)
+                .setAlbumArtist(song.albumArtist)
+                .setTrackNumber(song.trackNumber)
+                .setDiscNumber(song.discNumber)
+                .setReleaseYear(song.year)
                 .setIsPlayable(true)
-                .setMediaType(MEDIA_TYPE_MUSIC)
-                .setExtras(Bundle().apply { putBoolean(ExtraIsMusicVideo, false) })
+                .setMediaType(if (song.isPodcast) MEDIA_TYPE_PODCAST_EPISODE else MEDIA_TYPE_MUSIC)
+                .setExtras(
+                    Bundle().apply {
+                        putBoolean(ExtraIsMusicVideo, song.isMusicVideo)
+                        putBoolean(ExtraIsPodcast, song.isPodcast)
+                    },
+                )
                 .build(),
         ).build()
 
@@ -80,9 +105,16 @@ fun SongItem.toMediaItem() =
                 ).setAlbumTitle(album?.name)
                 .setIsPlayable(true)
                 .setMediaType(MEDIA_TYPE_MUSIC)
-                .setExtras(Bundle().apply { putBoolean(ExtraIsMusicVideo, isMusicVideo()) })
+                .setExtras(
+                    Bundle().apply {
+                        putBoolean(ExtraIsMusicVideo, isMusicVideo())
+                        putBoolean(ExtraIsPodcast, false)
+                    },
+                )
                 .build(),
         ).build()
+
+fun EpisodeItem.toMediaItem() = toMediaMetadata().toMediaItem()
 
 fun MediaMetadata.toMediaItem() =
     MediaItem
@@ -104,9 +136,18 @@ fun MediaMetadata.toMediaItem() =
                         thumbnailUrl.toNotificationArtworkUri()
                     },
                 ).setAlbumTitle(album?.title)
+                .setAlbumArtist(albumArtist)
+                .setTrackNumber(trackNumber)
+                .setDiscNumber(discNumber)
+                .setReleaseYear(year)
                 .setIsPlayable(true)
-                .setMediaType(MEDIA_TYPE_MUSIC)
-                .setExtras(Bundle().apply { putBoolean(ExtraIsMusicVideo, isMusicVideo) })
+                .setMediaType(if (isPodcast) MEDIA_TYPE_PODCAST_EPISODE else MEDIA_TYPE_MUSIC)
+                .setExtras(
+                    Bundle().apply {
+                        putBoolean(ExtraIsMusicVideo, isMusicVideo)
+                        putBoolean(ExtraIsPodcast, isPodcast)
+                    },
+                )
                 .build(),
         ).build()
 

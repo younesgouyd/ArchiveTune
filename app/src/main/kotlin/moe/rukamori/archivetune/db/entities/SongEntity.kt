@@ -12,11 +12,6 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import moe.rukamori.archivetune.innertube.YouTube
 import java.time.LocalDateTime
 
 @Immutable
@@ -31,10 +26,15 @@ import java.time.LocalDateTime
 data class SongEntity(
     @PrimaryKey val id: String,
     val title: String,
+    @ColumnInfo(defaultValue = "0")
+    val titleOverride: Boolean = false,
     val duration: Int = -1, // in seconds
     val thumbnailUrl: String? = null,
     val albumId: String? = null,
     val albumName: String? = null,
+    val albumArtist: String? = null,
+    val trackNumber: Int? = null,
+    val discNumber: Int? = null,
     @ColumnInfo(defaultValue = "0")
     val explicit: Boolean = false,
     val year: Int? = null,
@@ -45,6 +45,10 @@ data class SongEntity(
     val totalPlayTime: Long = 0, // in milliseconds
     val inLibrary: LocalDateTime? = null,
     val dateDownload: LocalDateTime? = LocalDateTime.now(),
+    @ColumnInfo(name = "isMusicVideo", defaultValue = "0")
+    val isMusicVideo: Boolean = false,
+    @ColumnInfo(name = "isPodcast", defaultValue = "0")
+    val isPodcast: Boolean = false,
     @ColumnInfo(name = "isLocal", defaultValue = "0")
     val isLocal: Boolean = false,
 ) {
@@ -62,12 +66,7 @@ data class SongEntity(
                 liked = !liked,
                 likedDate = if (!liked) LocalDateTime.now() else null,
                 inLibrary = if (!liked) inLibrary ?: LocalDateTime.now() else inLibrary,
-            ).also {
-                CoroutineScope(Dispatchers.IO).launch {
-                    YouTube.likeVideo(id, !liked)
-                    this.cancel()
-                }
-            }
+            )
         }
 
     fun toggleLibrary() =
@@ -77,3 +76,8 @@ data class SongEntity(
             likedDate = if (inLibrary == null) likedDate else null,
         )
 }
+
+data class LikedSongDate(
+    val id: String,
+    val likedDate: LocalDateTime?,
+)

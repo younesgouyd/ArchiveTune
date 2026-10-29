@@ -46,7 +46,6 @@
     <string name="remove_download_playlist_confirm">Vuoi davvero rimuovere tutti i brani della playlist \"%s\" dall\'archivio brani scaricati?</string>
     <string name="delete_playlist_confirm">Vuoi veramente eliminare la playlist \"%s\"?</string>
     <string name="retry">Riprova</string>
-    <string name="radio">Radio</string>
     <string name="shuffle">Mescola</string>
     <string name="reset">Ripristina</string>
     <string name="details">Dettagli</string>
@@ -145,9 +144,7 @@
         <item quantity="one">1 minute</item>
         <item quantity="other">%d minuti</item>
     </plurals>
-    <string name="error_no_stream">Nessun flusso disponibile</string>
     <string name="error_no_internet">Nessuna connessione di rete</string>
-    <string name="error_timeout">Timeout</string>
     <string name="error_unknown">Errore sconosciuto</string>
     <string name="action_like">Mi piace</string>
     <string name="action_remove_like">Rimuovi mi piace</string>
@@ -302,10 +299,6 @@
     <string name="eq_flat">Piatto</string>
     <string name="eq_profiles">Profili</string>
     <string name="eq_manage">Gestisci</string>
-    <string name="eq_system_preset">Preimpostazione del sistema</string>
-    <string name="eq_manual">Manuale</string>
-    <string name="eq_profile_hint">Applica un profilo o salva le impostazioni correnti</string>
-    <string name="eq_save">Salva</string>
     <string name="eq_save_profile">Salva profilo</string>
     <string name="eq_profile_name">Nome del profilo</string>
     <string name="eq_custom_profile">Profilo personalizzato</string>
@@ -389,7 +382,6 @@
     <string name="small_image">Piccola immagine</string>
     <string name="small_image_custom_url">URL personalizzato di piccola immagine</string>
     <string name="activity_status">Stato dell\'attività</string>
-    <string name="platform_status">Piattaforma</string>
     <string name="translator_options">Opzioni del traduttore</string>
     <string name="enable_translator">Abilita traduttore</string>
     <string name="enable_translator_desc">Traduci i campi selezionati prima di inviarli a Discord RPC</string>
@@ -420,9 +412,7 @@
     <string name="enable_discord_debug_lines">Abilita le righe delle impostazioni di debug</string>
     <string name="presence_manager_running">Gestore delle presenze: in corsa</string>
     <string name="presence_manager_stopped">Gestore della presenza: interrotto</string>
-    <string name="filter_levels">Livelli di filtro</string>
     <string name="experimental_features">Funzionalità sperimentali</string>
-    <string name="reset_to_default_levels">Ripristina le impostazioni predefinite</string>
     <string name="no_logs">Nessun registro</string>
     <string name="show_nerd_stats">Mostra le statistiche dei nerd</string>
     <string name="description_show_nerd_stats">Visualizza le statistiche di riproduzione in tempo reale (codec, bitrate, buffer)</string>
@@ -450,10 +440,7 @@
     <string name="current_version">Versione attuale</string>
     <string name="latest_version_format">Latest: %s</string>
     <string name="enable_update_notification">Abilita notifica di aggiornamento</string>
-    <string name="enable_update_notification_desc">Ricevi una notifica quando viene rilasciata una nuova versione stabile</string>
     <string name="update_channel">Aggiorna canale</string>
-    <string name="channel_stable">Stabile</string>
-    <string name="channel_nightly">Notturno</string>
     <string name="recent_commits">Impegni recenti</string>
     <string name="update_notification_channel_name">Aggiornamenti dell\'app</string>
     <string name="update_notification_channel_desc">Notifiche per nuovi aggiornamenti dell\'app</string>
@@ -490,7 +477,6 @@
     <string name="removed_song_from_queue">Rimosso \"%s\" dalla coda</string>
     <string name="removed_n_songs_from_queue">Rimossi %d brani dalla coda</string>
     <string name="aod_mode">Modalità AOD</string>
-    <string name="aod_mode_exit">Lascia AOD</string>
     <string name="tempo">Ritmo</string>
     <string name="pitch">Tono</string>
     <string name="pitch_mode_semitones_short">st</string>
@@ -499,11 +485,10 @@
     <string name="sort_order_ascending">Crescente</string>
     <string name="sort_order_descending">Decrescente</string>
     <string name="no_matching_playlists">Nessuna playlist corrispondente</string>
-    <string name="error_malformed_stream">Errore fonte</string>
     <string name="random_theme_on_startup">Tema random all\'avvio</string>
     <string name="random_theme_on_startup_desc">Applica una palette di colori randomica ad ogni avvio dell\'app</string>
     <string name="archivetune_canvas">Canvas ArchiveTune</string>
-    <string name="archivetune_canvas_desc">Anima la copertina dell\'album durante la riproduzione (Fornito da BetterLyrics)</string>
+    <string name="archivetune_canvas_desc">Anima la copertina dell\'album durante la riproduzione</string>
     <string name="disable_animations">Disabilita animazioni</string>
     <string name="disable_animations_desc">Disabilita la maggior parte delle animazioni dell\'app. Raccomandato per dispositivi di fascia bassa</string>
     <string name="blur_intensity">Intensità sfocatura</string>
@@ -513,10 +498,6 @@
     <string name="slider_style_thick">Spesso</string>
     <string name="slider_style_circular">Circolare</string>
     <string name="slider_style_simple">Semplice</string>
-    <string name="playback_confirmation_required">Richiesta conferma playback</string>
-    <string name="playback_requires_youtube_music_confirmation">Conferma il playback in YouTube Music, quindi ritorna su ArchiveTune.</string>
-    <string name="playback_login_refresh_required">Ricarica login YouTube Music</string>
-    <string name="playback_requires_youtube_music_login_refresh">Ricarica il login di YouTube Music, quindi ritorna su ArchiveTune.</string>
     <string name="internet">Internet</string>
     <string name="internet_warning_title">Sicurezza e Avvertenza Utilizzo</string>
     <string name="internet_warning_doh">DNS tramite HTTPS funziona solo se la tua nazione blocca YouTube. Se YouTube blocca attivamente la tua regione, considera l\'utilizzo di un Proxy o VPN.</string>
@@ -536,7 +517,6 @@
     <string name="proxy_connection_failed">Connessione al proxy non riuscita: %s</string>
     <string name="stream_bypass_proxy">Bypassa il prosy per lo stream</string>
     <string name="stream_bypass_proxy_desc">Usa il tuo IP diretto per la riproduzione stream per evitare IP mismatch</string>
-    <string name="enable_paxsenix_lyrics">Abilita testi Paxsenix</string>
     <string name="audio_offload">Offload audio</string>
     <string name="audio_offload_desc">Consenti ai dispositivi supportati di riprodurre l’audio utilizzando la decodifica hardware a basso consumo energetico. Alcune funzionalità di elaborazione audio sono disattivate.</string>
     <string name="pause_on_device_mute">Pausa quando il volume del dispositivo è 0</string>
@@ -545,12 +525,6 @@
     <string name="album_backdrop_desc">Mostra l’opera d’arte come sfondo sfocato sul lettore</string>
     <string name="backdrop_blur_amount">Quantità di sfocatura dello sfondo</string>
     <string name="backdrop_blur_amount_value">%1$d%%</string>
-    <string name="library_title">La tua Libreria</string>
-    <string name="library_subtitle">La tua musica, organizzata per te</string>
-    <string name="library_playlists_subtitle">Le tue playlist, organizzate per te</string>
-    <string name="library_songs_subtitle">Tutte le tue canzoni, organizzate per te</string>
-    <string name="library_artists_subtitle">Tutti i tuoi artisti preferiti, in un unico posto</string>
-    <string name="library_albums_subtitle">Tutti i tuoi album, perfettamente organizzati</string>
     <string name="most_played_badge">PIÙ ASCOLTATO</string>
     <string name="play_all">Riproduci tutto</string>
     <string name="offline_shortcut">Offline</string>
@@ -561,4 +535,9 @@
     <string name="recently_played">Riprodotto di recente</string>
     <string name="top_mixes">Le migliori combinazioni per te</string>
     <string name="library_top_mixes_loading">Preparando i tuoi Mixes AI</string>
+    <string name="library_top_mixes_no_recent_history">Ascolta ancora altre canzoni così che l\'AI possa creare dei mix in base ai tuoi ascolti recenti.</string>
+    <string name="library_top_mixes_no_valid_mixes">L\'intelligenza artificiale non ha restituito alcun mix riproducibile dalla cronologia recente.</string>
+    <string name="library_top_mixes_failed">Impossibile creare i mix migliori</string>
+    <string name="your_playlists">Le tue playlist</string>
+    <string name="library_top_mixes_ai_not_configured_desc">L\'integrazione AI è richiesta prima, così che ArchiveTune possa creare personali mix in base ai tuoi gusti</string>
 </resources>

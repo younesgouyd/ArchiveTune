@@ -38,11 +38,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -61,8 +63,8 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberSliderState
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -90,6 +92,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.launch
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.HISTORY_DURATION_DEFAULT
@@ -360,6 +363,7 @@ fun <T> ListPreference(
     values: List<T>,
     valueText: @Composable (T) -> String,
     valueDescription: (@Composable (T) -> String)? = null,
+    isValueEnabled: (T) -> Boolean = { true },
     onValueSelected: (T) -> Unit,
     isEnabled: Boolean = true,
 ) {
@@ -376,6 +380,7 @@ fun <T> ListPreference(
             selectedValue = selectedValue,
             valueText = valueText,
             valueDescription = valueDescription,
+            isValueEnabled = isValueEnabled,
             sheetState = sheetState,
             onDismiss = { showBottomSheet = false },
             onValueSelected = { value ->
@@ -413,6 +418,207 @@ fun <T> ListPreference(
 }
 
 @Composable
+fun <T : Any> MultiSelectListPreference(
+    modifier: Modifier = Modifier,
+    title: @Composable () -> Unit,
+    description: String? = null,
+    icon: (@Composable () -> Unit)? = null,
+    values: ImmutableList<T>,
+    checkedValues: ImmutableList<T>,
+    selectionText: String,
+    valueText: @Composable (T) -> String,
+    isBottomSheetVisible: Boolean,
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+    onValueCheckedChange: (T, Boolean) -> Unit,
+    onConfirm: () -> Unit,
+    isEnabled: Boolean = true,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coroutineScope = rememberCoroutineScope()
+    val hideSheet: (() -> Unit) -> Unit =
+        remember(coroutineScope, sheetState) {
+            { completion ->
+                coroutineScope
+                    .launch {
+                        sheetState.hide()
+                        if (!sheetState.isVisible) completion()
+                    }
+            }
+        }
+
+    if (isBottomSheetVisible) {
+        MultiSelectPreferenceBottomSheet(
+            title = title,
+            values = values,
+            checkedValues = checkedValues,
+            valueText = valueText,
+            sheetState = sheetState,
+            onDismiss = onDismiss,
+            onValueCheckedChange = onValueCheckedChange,
+            onCancel = { hideSheet(onDismiss) },
+            onConfirm = { hideSheet(onConfirm) },
+        )
+    }
+
+    PreferenceEntry(
+        modifier = modifier,
+        title = title,
+        description = description,
+        icon = icon,
+        content = {
+            Spacer(Modifier.height(10.dp))
+            PreferenceValueChip(selectionText)
+        },
+        trailingContent = {
+            Icon(
+                painter = painterResource(R.drawable.arrow_forward),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
+        },
+        onClick = onOpen,
+        isEnabled = isEnabled,
+    )
+}
+
+@Composable
+private fun <T : Any> MultiSelectPreferenceBottomSheet(
+    title: @Composable () -> Unit,
+    values: ImmutableList<T>,
+    checkedValues: ImmutableList<T>,
+    valueText: @Composable (T) -> String,
+    sheetState: SheetState,
+    onDismiss: () -> Unit,
+    onValueCheckedChange: (T, Boolean) -> Unit,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                width = 48.dp,
+                height = 5.dp,
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+            )
+        },
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 26.dp)
+                    .padding(bottom = 12.dp),
+        ) {
+            ProvideTextStyle(
+                MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 18.dp, bottom = 22.dp),
+                ) {
+                    title()
+                }
+            }
+
+            LazyColumn(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .heightIn(max = 520.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 12.dp),
+            ) {
+                itemsIndexed(
+                    items = values,
+                    key = { index, value -> preferenceOptionKey(index, value) },
+                    contentType = { _, _ -> "multi_select_preference_option" },
+                ) { _, value ->
+                    MultiSelectPreferenceOption(
+                        text = valueText(value),
+                        checked = value in checkedValues,
+                        onCheckedChange = { checked -> onValueCheckedChange(value, checked) },
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onCancel) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+                TextButton(onClick = onConfirm) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MultiSelectPreferenceOption(
+    text: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val containerColor =
+        if (checked) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        }
+    val contentColor =
+        if (checked) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
+
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 64.dp)
+                .clip(MaterialTheme.shapes.extraLarge)
+                .background(containerColor)
+                .toggleable(
+                    value = checked,
+                    onValueChange = onCheckedChange,
+                    role = Role.Checkbox,
+                ).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = if (checked) FontWeight.Bold else FontWeight.Normal,
+            color = contentColor,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(16.dp))
+        Checkbox(
+            checked = checked,
+            onCheckedChange = null,
+        )
+    }
+}
+
+@Composable
 inline fun <reified T : Enum<T>> EnumListPreference(
     modifier: Modifier = Modifier,
     noinline title: @Composable () -> Unit,
@@ -446,6 +652,7 @@ private fun <T> PreferenceSelectionBottomSheet(
     selectedValue: T,
     valueText: @Composable (T) -> String,
     valueDescription: (@Composable (T) -> String)? = null,
+    isValueEnabled: (T) -> Boolean,
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onValueSelected: (T) -> Unit,
@@ -502,6 +709,7 @@ private fun <T> PreferenceSelectionBottomSheet(
                         text = valueText(value),
                         description = valueDescription?.invoke(value),
                         selected = value == selectedValue,
+                        enabled = isValueEnabled(value),
                         onClick = { onValueSelected(value) },
                     )
                 }
@@ -515,6 +723,7 @@ private fun PreferenceSelectionOption(
     text: String,
     description: String? = null,
     selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
     val containerColor =
@@ -529,10 +738,12 @@ private fun PreferenceSelectionOption(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = if (description == null) 72.dp else 96.dp)
+                .alpha(if (enabled) 1f else 0.5f)
                 .clip(MaterialTheme.shapes.extraLarge)
                 .background(containerColor)
                 .selectable(
                     selected = selected,
+                    enabled = enabled,
                     onClick = onClick,
                     role = Role.RadioButton,
                 ).padding(horizontal = 24.dp, vertical = 20.dp),
@@ -815,16 +1026,17 @@ fun SliderPreference(
                     Spacer(Modifier.height(16.dp))
 
                     val sliderState =
-                        rememberSliderState(
+                        rememberControlledSliderState(
                             value = sliderValue,
                             valueRange = HISTORY_DURATION_RANGE,
-                            onValueChangeFinished = {},
                         )
-                    sliderState.onValueChange = { sliderValue = it }
-                    sliderState.value = sliderValue
 
                     Slider(
                         state = sliderState,
+                        onValueChange = { value ->
+                            sliderState.value = value
+                            sliderValue = value
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         track = {
                             SliderDefaults.Track(
@@ -927,17 +1139,18 @@ fun CrossfadeSliderPreference(
                     Spacer(Modifier.height(16.dp))
 
                     val crossfadeSliderState =
-                        rememberSliderState(
+                        rememberControlledSliderState(
                             value = sliderValue,
                             steps = 19,
                             valueRange = 0f..10f,
-                            onValueChangeFinished = {},
                         )
-                    crossfadeSliderState.onValueChange = { sliderValue = it.coerceIn(0f, 10f) }
-                    crossfadeSliderState.value = sliderValue
 
                     Slider(
                         state = crossfadeSliderState,
+                        onValueChange = { value ->
+                            crossfadeSliderState.value = value
+                            sliderValue = value.coerceIn(0f, 10f)
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         track = {
                             SliderDefaults.Track(
@@ -1032,19 +1245,18 @@ fun NumberPickerPreference(
                     Spacer(Modifier.height(16.dp))
 
                     val pickerSliderState =
-                        rememberSliderState(
+                        rememberControlledSliderState(
                             value = sliderValue,
                             steps = maxValue - minValue - 1,
                             valueRange = minValue.toFloat()..maxValue.toFloat(),
-                            onValueChangeFinished = {},
                         )
-                    pickerSliderState.onValueChange = {
-                        sliderValue = it.coerceIn(minValue.toFloat(), maxValue.toFloat())
-                    }
-                    pickerSliderState.value = sliderValue
 
                     Slider(
                         state = pickerSliderState,
+                        onValueChange = { value ->
+                            pickerSliderState.value = value
+                            sliderValue = value.coerceIn(minValue.toFloat(), maxValue.toFloat())
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         track = {
                             SliderDefaults.Track(

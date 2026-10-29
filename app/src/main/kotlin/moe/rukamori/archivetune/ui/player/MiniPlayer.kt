@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,18 +35,29 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.palette.graphics.Palette
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.toBitmap
+import dev.chrisbanes.haze.HazeState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.LocalPlayerConnection
 import moe.rukamori.archivetune.constants.MiniPlayerBackgroundStyle
 import moe.rukamori.archivetune.constants.MiniPlayerBackgroundStyleKey
+import moe.rukamori.archivetune.constants.FloatingBarJunctionCornerRadius
+import moe.rukamori.archivetune.constants.FloatingBarOuterCornerRadius
+import moe.rukamori.archivetune.constants.FloatingBarStandaloneCornerRadius
+import moe.rukamori.archivetune.constants.MiniPlayerHeight
+import moe.rukamori.archivetune.constants.NavigationBarMaxWidth
+import moe.rukamori.archivetune.constants.NavigationBarMode
 import moe.rukamori.archivetune.constants.SwipeSensitivityKey
+import moe.rukamori.archivetune.ui.component.FloatingBarBlurBackground
+import moe.rukamori.archivetune.ui.component.FloatingBarGlassBackground
 import moe.rukamori.archivetune.ui.theme.PlayerColorExtractor
 import moe.rukamori.archivetune.utils.rememberEnumPreference
 import moe.rukamori.archivetune.utils.rememberPreference
@@ -57,14 +69,20 @@ private const val MiniPlayerPaletteCacheSize = 24
 fun MiniPlayer(
     position: Long,
     duration: Long,
+    hazeState: HazeState,
     modifier: Modifier = Modifier,
     pureBlack: Boolean,
+    navigationProximityProvider: () -> Float = { 0f },
+    navigationBarMode: NavigationBarMode = NavigationBarMode.CONNECTED,
 ) {
     NewMiniPlayer(
         position = position,
         duration = duration,
+        hazeState = hazeState,
         modifier = modifier,
         pureBlack = pureBlack,
+        navigationProximityProvider = navigationProximityProvider,
+        navigationBarMode = navigationBarMode,
     )
 }
 
@@ -72,8 +90,11 @@ fun MiniPlayer(
 private fun NewMiniPlayer(
     position: Long,
     duration: Long,
+    hazeState: HazeState,
     modifier: Modifier = Modifier,
     pureBlack: Boolean,
+    navigationProximityProvider: () -> Float,
+    navigationBarMode: NavigationBarMode,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val context = LocalContext.current
@@ -97,7 +118,9 @@ private fun NewMiniPlayer(
             }
         }
     val fallbackColor = MaterialTheme.colorScheme.surface.toArgb()
-    val shouldUseArtworkBackground = miniPlayerBackgroundStyle != MiniPlayerBackgroundStyle.THEME
+    val shouldUseArtworkBackground =
+        miniPlayerBackgroundStyle == MiniPlayerBackgroundStyle.GRADIENT ||
+            miniPlayerBackgroundStyle == MiniPlayerBackgroundStyle.GLOW
 
     LaunchedEffect(
         mediaMetadata?.id,
@@ -150,7 +173,10 @@ private fun NewMiniPlayer(
                     palette = palette,
                     fallbackColor = fallbackColor,
                 )
-            }.getOrDefault(emptyList())
+            }.getOrElse { error ->
+                if (error is CancellationException) throw error
+                emptyList()
+            }
 
         if (extractedColors.isNotEmpty()) {
             gradientColorsCache[currentMetadata.id] = extractedColors
@@ -163,19 +189,34 @@ private fun NewMiniPlayer(
             MiniPlayerBackgroundPalette.from(gradientColors)
         }
     val effectiveBackgroundStyle =
-        if (shouldUseArtworkBackground && backgroundPalette != null) {
-            miniPlayerBackgroundStyle
-        } else {
+        if (shouldUseArtworkBackground && backgroundPalette == null) {
             MiniPlayerBackgroundStyle.THEME
+        } else {
+            miniPlayerBackgroundStyle
         }
 
     val contentColors =
         rememberMiniPlayerContentColors(
-            useArtworkBackground = effectiveBackgroundStyle != MiniPlayerBackgroundStyle.THEME,
+            useArtworkBackground = shouldUseArtworkBackground && backgroundPalette != null,
         )
+    val proximity =
+        if (navigationBarMode == NavigationBarMode.CONNECTED) navigationProximityProvider() else 0f
+    val miniPlayerShape =
+        remember(proximity) {
+            RoundedCornerShape(
+                topStart = lerp(FloatingBarStandaloneCornerRadius.value, FloatingBarOuterCornerRadius.value, proximity).dp,
+                topEnd = lerp(FloatingBarStandaloneCornerRadius.value, FloatingBarOuterCornerRadius.value, proximity).dp,
+                bottomStart = lerp(FloatingBarStandaloneCornerRadius.value, FloatingBarJunctionCornerRadius.value, proximity).dp,
+                bottomEnd = lerp(FloatingBarStandaloneCornerRadius.value, FloatingBarJunctionCornerRadius.value, proximity).dp,
+            )
+        }
+    val constrainToNavigationWidth by remember {
+        derivedStateOf { navigationProximityProvider() > 0f }
+    }
 
     SwipeableMiniPlayerBox(
         modifier = modifier,
+        contentMaxWidth = if (constrainToNavigationWidth) NavigationBarMaxWidth else null,
         swipeSensitivity = swipeSensitivity,
         swipeThumbnail = swipeThumbnail,
         playerConnection = playerConnection,
@@ -188,13 +229,16 @@ private fun NewMiniPlayer(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
+                    .height(MiniPlayerHeight)
                     .offset { IntOffset(offsetX.roundToInt(), 0) }
-                    .clip(RoundedCornerShape(32.dp)),
+                    .clip(miniPlayerShape),
         ) {
             MiniPlayerBackground(
                 style = effectiveBackgroundStyle,
                 palette = backgroundPalette,
+                hazeState = hazeState,
+                pureBlack = pureBlack,
+                shape = miniPlayerShape,
                 modifier = Modifier.fillMaxSize(),
             )
             NewMiniPlayerContent(
@@ -213,10 +257,12 @@ private fun rememberMiniPlayerContentColors(useArtworkBackground: Boolean): Mini
     return remember(
         useArtworkBackground,
         colorScheme.primary,
+        colorScheme.onPrimary,
         colorScheme.outline,
         colorScheme.onSurface,
         colorScheme.onSurfaceVariant,
         colorScheme.surface,
+        colorScheme.surfaceContainerHighest,
         colorScheme.surfaceVariant,
         colorScheme.primaryContainer,
         colorScheme.onPrimaryContainer,
@@ -229,8 +275,9 @@ private fun rememberMiniPlayerContentColors(useArtworkBackground: Boolean): Mini
                 progressTrack = Color.White.copy(alpha = 0.24f),
                 artworkContainer = Color.White.copy(alpha = 0.14f),
                 artworkBorder = Color.White.copy(alpha = 0.22f),
-                primaryButtonContainer = Color.White.copy(alpha = 0.16f),
-                buttonBorder = Color.White.copy(alpha = 0.24f),
+                primaryButtonContainer = Color.White.copy(alpha = 0.92f),
+                primaryButtonIcon = Color.Black,
+                secondaryButtonContainer = Color.Black.copy(alpha = 0.22f),
                 buttonIcon = Color.White,
                 disabledButtonIcon = Color.White.copy(alpha = 0.38f),
                 togetherContainer = Color.White.copy(alpha = 0.16f),
@@ -244,8 +291,9 @@ private fun rememberMiniPlayerContentColors(useArtworkBackground: Boolean): Mini
                 progressTrack = colorScheme.outline.copy(alpha = 0.18f),
                 artworkContainer = colorScheme.surfaceVariant,
                 artworkBorder = colorScheme.outline.copy(alpha = 0.2f),
-                primaryButtonContainer = colorScheme.surface,
-                buttonBorder = colorScheme.outline.copy(alpha = 0.3f),
+                primaryButtonContainer = colorScheme.primary,
+                primaryButtonIcon = colorScheme.onPrimary,
+                secondaryButtonContainer = colorScheme.surfaceContainerHighest,
                 buttonIcon = colorScheme.onSurface,
                 disabledButtonIcon = colorScheme.onSurface.copy(alpha = 0.38f),
                 togetherContainer = colorScheme.primaryContainer,
@@ -259,18 +307,40 @@ private fun rememberMiniPlayerContentColors(useArtworkBackground: Boolean): Mini
 private fun MiniPlayerBackground(
     style: MiniPlayerBackgroundStyle,
     palette: MiniPlayerBackgroundPalette?,
+    hazeState: HazeState,
+    pureBlack: Boolean,
+    shape: RoundedCornerShape,
     modifier: Modifier = Modifier,
 ) {
     when (style) {
         MiniPlayerBackgroundStyle.THEME -> {
             Box(
-                modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainer),
+                modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            )
+        }
+
+        MiniPlayerBackgroundStyle.ACRYLIC,
+        MiniPlayerBackgroundStyle.BLUR -> {
+            FloatingBarBlurBackground(
+                hazeState = hazeState,
+                isAcrylic = style == MiniPlayerBackgroundStyle.ACRYLIC,
+                pureBlack = pureBlack,
+                modifier = modifier,
+            )
+        }
+
+        MiniPlayerBackgroundStyle.GLASS -> {
+            FloatingBarGlassBackground(
+                hazeState = hazeState,
+                shape = shape,
+                pureBlack = pureBlack,
+                modifier = modifier,
             )
         }
 
         MiniPlayerBackgroundStyle.GRADIENT -> {
             val colors = requireNotNull(palette)
-            Box(modifier = modifier) {
+            Box(modifier = modifier.background(Color.Black)) {
                 Box(
                     modifier =
                         Modifier

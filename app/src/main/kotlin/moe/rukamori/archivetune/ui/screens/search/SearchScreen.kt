@@ -1,6 +1,6 @@
 /*
  * ArchiveTune (2026)
- * Â© Rukamori â€” github.com/rukamori
+ * © Rukamori — github.com/rukamori
  * GPL-3.0 License | Contributors: see git history
  * Do not remove or alter this notice. - Per GPL-3.0 Section 4 & Section 5
  */
@@ -90,6 +90,8 @@ import moe.rukamori.archivetune.ui.menu.YouTubeArtistMenu
 import moe.rukamori.archivetune.ui.menu.YouTubeSongMenu
 import moe.rukamori.archivetune.ui.screens.MoodAndGenresButton
 import moe.rukamori.archivetune.ui.screens.MoodAndGenresButtonHeight
+import moe.rukamori.archivetune.ui.utils.navigateToAlbum
+import moe.rukamori.archivetune.ui.utils.navigateToArtist
 import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.SearchDiscoveryScreenState
 import moe.rukamori.archivetune.viewmodels.SearchDiscoveryTab
@@ -356,6 +358,18 @@ private fun SearchDiscoveryTabs(
             Tab(
                 selected = selectedTab == tab,
                 onClick = { onTabSelected(tab) },
+                icon = {
+                    Icon(
+                        painter =
+                            painterResource(
+                                when (tab) {
+                                    SearchDiscoveryTab.EXPLORE -> R.drawable.explore_outlined
+                                    SearchDiscoveryTab.SUGGESTIONS -> R.drawable.auto_awesome
+                                },
+                            ),
+                        contentDescription = null,
+                    )
+                },
                 text = {
                     Text(
                         text =
@@ -495,11 +509,17 @@ private fun SuggestedSongsSection(
                     ),
         ) {
             visibleSongs.forEachIndexed { index, song ->
+                val isActive = song.id == mediaMetadata?.id
                 Card(
                     shape = segmentedSuggestedSongShape(index = index, count = visibleSongs.size),
                     colors =
                         CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            containerColor =
+                                if (isActive) {
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainerLow
+                                },
                         ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier =
@@ -507,7 +527,7 @@ private fun SuggestedSongsSection(
                             .fillMaxWidth()
                             .combinedClickable(
                                 onClick = {
-                                    if (song.id == mediaMetadata?.id) {
+                                    if (isActive) {
                                         playerConnection.player.togglePlayPause()
                                     } else {
                                         playerConnection.playQueue(
@@ -534,9 +554,10 @@ private fun SuggestedSongsSection(
                         item = song,
                         albumIndex = index + 1,
                         viewCountText = song.viewCountText,
-                        isActive = song.id == mediaMetadata?.id,
+                        isActive = isActive,
                         isPlaying = isPlaying,
                         isSwipeable = false,
+                        showActiveContainer = false,
                         trailingContent = {
                             YouTubeSongMenuButton(song = song, navController = navController)
                         },
@@ -585,7 +606,7 @@ private fun TrendingAlbumsSection(
                     Modifier
                         .combinedClickable(
                             onClick = {
-                                navController.navigate("album/${album.id}")
+                                navController.navigateToAlbum(album.id)
                             },
                             onLongClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -633,7 +654,7 @@ private fun SuggestedArtistsSection(
                     Modifier
                         .combinedClickable(
                             onClick = {
-                                navController.navigate("artist/${artist.id}")
+                                navController.navigateToArtist(artist.id)
                             },
                             onLongClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)

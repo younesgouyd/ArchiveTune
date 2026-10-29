@@ -9,6 +9,7 @@ package moe.rukamori.archivetune.utils
 
 import android.content.Context
 import moe.rukamori.archivetune.db.entities.Song
+import moe.rukamori.archivetune.innertube.YouTube
 import moe.rukamori.archivetune.ui.utils.getMusicVideoYTThumbnail
 import timber.log.Timber
 
@@ -17,6 +18,7 @@ data class ResolvedDiscordImages(
     val thumbnailResolvedId: String?,
     val artistOriginalUrl: String?,
     val artistResolvedId: String?,
+    val channelAvatarUrl: String? = null,
 )
 
 object DiscordImageResolver {
@@ -50,11 +52,12 @@ object DiscordImageResolver {
     ): ResolvedDiscordImages {
         val songId = song.song.id
         val thumbnailUrl = song.song.thumbnailUrl?.asHttpUrl()
-        val artistUrl =
-            song.artists
-                .firstOrNull()
-                ?.thumbnailUrl
-                ?.asHttpUrl()
+
+        // Collect artist URLs from all artists (multi-artist support)
+        val artistUrls = song.artists
+            .mapNotNull { it.thumbnailUrl?.asHttpUrl() }
+            .filter { it != thumbnailUrl }
+        val artistUrl = artistUrls.firstOrNull()
 
         getCachedImages(songId)
             ?.takeIf { cached ->
@@ -78,14 +81,35 @@ object DiscordImageResolver {
                 ?.asHttpUrl()
                 ?.takeUnless { it == savedArtwork?.thumbnail?.asHttpUrl() }
         val persistedArtist = artistUrl ?: savedArtistUrl
-        val artist = persistedArtist ?: thumbnail
+
+        // Fetch channel avatar from YouTube API when playing a music video
+        // Try all artists and use the first available channel avatar
+        val channelAvatar = if (isMusicVideo) {
+            var avatar: String? = null
+            for (artist in song.artists) {
+                val artistId = artist.id
+                if (artistId.startsWith("UC")) {
+                    val result = runCatching {
+                        YouTube.artist(artistId).getOrNull()?.artist?.thumbnail
+                    }.getOrNull()
+                    if (result != null) {
+                        avatar = result
+                        break
+                    }
+                }
+            }
+            avatar
+        } else {
+            null
+        }
 
         val images =
             ResolvedDiscordImages(
                 thumbnailOriginalUrl = thumbnailUrl,
                 thumbnailResolvedId = thumbnail,
                 artistOriginalUrl = artistUrl,
-                artistResolvedId = artist,
+                artistResolvedId = persistedArtist,
+                channelAvatarUrl = channelAvatar,
             )
 
         if (thumbnail != savedArtwork?.thumbnail || persistedArtist != savedArtwork?.artist) {
@@ -122,19 +146,13 @@ object DiscordImageResolver {
             }
 
             "artist" -> {
-                resolvedImages.artistResolvedId
+                resolvedImages.channelAvatarUrl
+                    ?: resolvedImages.artistResolvedId
                     ?: resolvedImages.artistOriginalUrl
-                    ?: song.artists
-                        .firstOrNull()
-                        ?.thumbnailUrl
-                        ?.asHttpUrl()
-                    ?: resolvedImages.thumbnailResolvedId
-                    ?: resolvedImages.thumbnailOriginalUrl
-                    ?: song.song.thumbnailUrl?.asHttpUrl()
             }
 
             "appicon" -> {
-                "https://raw.githubusercontent.com/ArchiveTuneApp/ArchiveTune/main/fastlane/metadata/android/en-US/images/icon.png"
+                "https://raw.githubusercontent.com/rukamori/ArchiveTune/main/fastlane/metadata/android/en-US/images/icon.png"
             }
 
             "custom" -> {

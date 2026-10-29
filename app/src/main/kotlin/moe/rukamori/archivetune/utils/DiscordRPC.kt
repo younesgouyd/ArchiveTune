@@ -22,7 +22,6 @@ import moe.rukamori.archivetune.constants.DiscordActivityButton2LabelKey
 import moe.rukamori.archivetune.constants.DiscordActivityButton2UrlSourceKey
 import moe.rukamori.archivetune.constants.DiscordActivityDetailsKey
 import moe.rukamori.archivetune.constants.DiscordActivityNameKey
-import moe.rukamori.archivetune.constants.DiscordActivityPlatformKey
 import moe.rukamori.archivetune.constants.DiscordActivityStateKey
 import moe.rukamori.archivetune.constants.DiscordActivityTypeKey
 import moe.rukamori.archivetune.constants.DiscordLargeImageCustomUrlKey
@@ -36,7 +35,6 @@ import moe.rukamori.archivetune.constants.EnableTranslatorKey
 import moe.rukamori.archivetune.constants.TranslatorContextsKey
 import moe.rukamori.archivetune.constants.TranslatorTargetLangKey
 import moe.rukamori.archivetune.db.entities.Song
-import moe.rukamori.archivetune.discord.DiscordActivityPlatform
 import moe.rukamori.archivetune.discord.DiscordActivityType
 import moe.rukamori.archivetune.discord.DiscordOnlineStatus
 import moe.rukamori.archivetune.discord.DiscordPresenceActivity
@@ -53,9 +51,9 @@ class DiscordRPC(
 ) {
     companion object {
         private const val PAUSE_IMAGE_URL =
-            "https://raw.githubusercontent.com/ArchiveTuneApp/ArchiveTune/main/fastlane/metadata/android/en-US/images/RPC/pause_icon.png"
+            "https://raw.githubusercontent.com/rukamori/ArchiveTune/main/fastlane/metadata/android/en-US/images/RPC/pause_icon.png"
         private const val APP_ICON_URL =
-            "https://raw.githubusercontent.com/ArchiveTuneApp/ArchiveTune/main/fastlane/metadata/android/en-US/images/icon.png"
+            "https://raw.githubusercontent.com/rukamori/ArchiveTune/main/fastlane/metadata/android/en-US/images/icon.png"
         private const val TAG = "DiscordRPC"
     }
 
@@ -83,7 +81,6 @@ class DiscordRPC(
     ) = runCatching {
         if (lastSongId != song.song.id) {
             translationCache.clear()
-            DiscordImageResolver.clearCache()
             lastSongId = song.song.id
         }
 
@@ -118,7 +115,8 @@ class DiscordRPC(
             ).toDiscordText(maxLength = 128, fallback = appName)
 
         val baseSongUrl = song.youtubeMusicUrl()
-        val resolvedImages = DiscordImageResolver.resolveImagesForSong(context, song)
+        val resolvedImages = DiscordImageResolver.getCachedImages(song.song.id)
+            ?: DiscordImageResolver.resolveImagesForSong(context, song)
         val largeImageType = context.dataStore[DiscordLargeImageTypeKey] ?: "thumbnail"
         val largeImageCustomUrl = context.dataStore[DiscordLargeImageCustomUrlKey] ?: ""
         val smallImageType = context.dataStore[DiscordSmallImageTypeKey] ?: "artist"
@@ -173,10 +171,6 @@ class DiscordRPC(
             DiscordActivityType.fromPreference(
                 context.dataStore[DiscordActivityTypeKey] ?: "LISTENING",
             )
-        val platform =
-            DiscordActivityPlatform.fromPreference(
-                context.dataStore[DiscordActivityPlatformKey] ?: "android",
-            )
         val status =
             DiscordOnlineStatus.fromPreference(
                 context.dataStore[DiscordPresenceStatusKey] ?: "online",
@@ -209,7 +203,6 @@ class DiscordRPC(
                 buttons = buttons,
                 timestamps = timestamps,
                 statusDisplayType = DiscordStatusDisplayType.State,
-                supportedPlatforms = platform,
                 onlineStatus = status,
             )
 
@@ -340,7 +333,7 @@ class DiscordRPC(
         val button2UrlSource = context.dataStore[DiscordActivityButton2UrlSourceKey] ?: "custom"
         val button2CustomUrl =
             context.dataStore[DiscordActivityButton2CustomUrlKey]
-                ?: "https://github.com/ArchiveTuneApp/ArchiveTune"
+                ?: "https://github.com/rukamori/ArchiveTune"
 
         return buildList {
             if (button1Enabled) {

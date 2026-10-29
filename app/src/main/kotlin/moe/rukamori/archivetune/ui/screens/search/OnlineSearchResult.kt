@@ -68,16 +68,21 @@ import moe.rukamori.archivetune.innertube.YouTube.SearchFilter.Companion.FILTER_
 import moe.rukamori.archivetune.innertube.YouTube.SearchFilter.Companion.FILTER_ARTIST
 import moe.rukamori.archivetune.innertube.YouTube.SearchFilter.Companion.FILTER_COMMUNITY_PLAYLIST
 import moe.rukamori.archivetune.innertube.YouTube.SearchFilter.Companion.FILTER_FEATURED_PLAYLIST
+import moe.rukamori.archivetune.innertube.YouTube.SearchFilter.Companion.FILTER_PODCAST
 import moe.rukamori.archivetune.innertube.YouTube.SearchFilter.Companion.FILTER_SONG
 import moe.rukamori.archivetune.innertube.YouTube.SearchFilter.Companion.FILTER_VIDEO
 import moe.rukamori.archivetune.innertube.models.AlbumItem
 import moe.rukamori.archivetune.innertube.models.ArtistItem
+import moe.rukamori.archivetune.innertube.models.EpisodeItem
 import moe.rukamori.archivetune.innertube.models.PlaylistItem
+import moe.rukamori.archivetune.innertube.models.PodcastItem
 import moe.rukamori.archivetune.innertube.models.SongItem
 import moe.rukamori.archivetune.innertube.models.WatchEndpoint
 import moe.rukamori.archivetune.innertube.models.YTItem
 import moe.rukamori.archivetune.innertube.pages.SearchSummary
 import moe.rukamori.archivetune.models.toMediaMetadata
+import moe.rukamori.archivetune.extensions.toMediaItem
+import moe.rukamori.archivetune.playback.queues.ListQueue
 import moe.rukamori.archivetune.playback.queues.YouTubeQueue
 import moe.rukamori.archivetune.ui.component.ChipsRow
 import moe.rukamori.archivetune.ui.component.EmptyPlaceholder
@@ -89,12 +94,16 @@ import moe.rukamori.archivetune.ui.menu.YouTubeAlbumMenu
 import moe.rukamori.archivetune.ui.menu.YouTubeArtistMenu
 import moe.rukamori.archivetune.ui.menu.YouTubePlaylistMenu
 import moe.rukamori.archivetune.ui.menu.YouTubeSongMenu
+import moe.rukamori.archivetune.ui.utils.navigateToAlbum
+import moe.rukamori.archivetune.ui.utils.navigateToArtist
+import moe.rukamori.archivetune.viewmodels.OnlineSearchSort
 import moe.rukamori.archivetune.viewmodels.OnlineSearchViewModel
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun OnlineSearchResult(
     navController: NavController,
+    searchSort: OnlineSearchSort,
     viewModel: OnlineSearchViewModel = hiltViewModel(),
 ) {
     val menuState = LocalMenuState.current
@@ -107,7 +116,6 @@ fun OnlineSearchResult(
     val lazyListState = rememberLazyListState()
 
     val searchFilter by viewModel.filter.collectAsStateWithLifecycle()
-    val searchSort by viewModel.sort.collectAsStateWithLifecycle()
     val searchSummary = viewModel.summaryPage
     val itemsPage by remember(searchFilter) {
         derivedStateOf {
@@ -129,6 +137,7 @@ fun OnlineSearchResult(
                 FILTER_VIDEO to stringResource(R.string.filter_videos),
                 FILTER_ALBUM to stringResource(R.string.filter_albums),
                 FILTER_ARTIST to stringResource(R.string.filter_artists),
+                FILTER_PODCAST to stringResource(R.string.podcast),
                 FILTER_COMMUNITY_PLAYLIST to stringResource(R.string.filter_community_playlists),
                 FILTER_FEATURED_PLAYLIST to stringResource(R.string.filter_featured_playlists),
             ).forEach { (sectionFilter, sectionTitle) ->
@@ -136,7 +145,7 @@ fun OnlineSearchResult(
                     ?.items
                     ?.takeIf { it.isNotEmpty() }
                     ?.let { items ->
-                        add(SearchSummary(title = sectionTitle, items = viewModel.sortedItems(items, searchSort)))
+                        add(SearchSummary(title = sectionTitle, items = items))
                     }
             }
         }
@@ -147,6 +156,7 @@ fun OnlineSearchResult(
                 FILTER_VIDEO,
                 FILTER_ALBUM,
                 FILTER_ARTIST,
+                FILTER_PODCAST,
                 FILTER_COMMUNITY_PLAYLIST,
                 FILTER_FEATURED_PLAYLIST,
             ).all { viewModel.viewStateMap.containsKey(it.value) }
@@ -161,43 +171,50 @@ fun OnlineSearchResult(
     }
 
     val ytItemContent: @Composable LazyItemScope.(YTItem) -> Unit = { item: YTItem ->
-        val longClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            menuState.show {
-                when (item) {
-                    is SongItem -> {
-                        YouTubeSongMenu(
-                            song = item,
-                            navController = navController,
-                            onDismiss = menuState::dismiss,
-                        )
-                    }
+        val longClick: (() -> Unit)? =
+            if (item is PodcastItem || item is EpisodeItem) {
+                null
+            } else {
+                {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    menuState.show {
+                        when (item) {
+                            is SongItem -> {
+                                YouTubeSongMenu(
+                                    song = item,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
 
-                    is AlbumItem -> {
-                        YouTubeAlbumMenu(
-                            albumItem = item,
-                            navController = navController,
-                            onDismiss = menuState::dismiss,
-                        )
-                    }
+                            is AlbumItem -> {
+                                YouTubeAlbumMenu(
+                                    albumItem = item,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
 
-                    is ArtistItem -> {
-                        YouTubeArtistMenu(
-                            artist = item,
-                            onDismiss = menuState::dismiss,
-                        )
-                    }
+                            is ArtistItem -> {
+                                YouTubeArtistMenu(
+                                    artist = item,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
 
-                    is PlaylistItem -> {
-                        YouTubePlaylistMenu(
-                            playlist = item,
-                            coroutineScope = coroutineScope,
-                            onDismiss = menuState::dismiss,
-                        )
+                            is PlaylistItem -> {
+                                YouTubePlaylistMenu(
+                                    playlist = item,
+                                    coroutineScope = coroutineScope,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+
+                            is PodcastItem, is EpisodeItem -> Unit
+                        }
                     }
                 }
             }
-        }
         YouTubeListItem(
             item = item,
             viewCountText = (item as? SongItem)?.viewCountText,
@@ -209,13 +226,13 @@ fun OnlineSearchResult(
                 },
             isPlaying = isPlaying,
             trailingContent = {
-                IconButton(
-                    onClick = longClick,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.more_vert),
-                        contentDescription = null,
-                    )
+                if (longClick != null) {
+                    IconButton(onClick = longClick) {
+                        Icon(
+                            painter = painterResource(R.drawable.more_vert),
+                            contentDescription = null,
+                        )
+                    }
                 }
             },
             modifier =
@@ -237,15 +254,28 @@ fun OnlineSearchResult(
                                 }
 
                                 is AlbumItem -> {
-                                    navController.navigate("album/${item.id}")
+                                    navController.navigateToAlbum(item.id)
                                 }
 
                                 is ArtistItem -> {
-                                    navController.navigate("artist/${item.id}")
+                                    navController.navigateToArtist(item.id)
                                 }
 
                                 is PlaylistItem -> {
                                     navController.navigate("online_playlist/${item.id}")
+                                }
+
+                                is PodcastItem -> {
+                                    navController.navigate("podcast/${android.net.Uri.encode(item.browseId)}")
+                                }
+
+                                is EpisodeItem -> {
+                                    playerConnection.playQueue(
+                                        ListQueue(
+                                            title = item.podcast?.name ?: item.title,
+                                            items = listOf(item.toMediaItem()),
+                                        ),
+                                    )
                                 }
                             }
                         },
@@ -277,6 +307,7 @@ fun OnlineSearchResult(
                         FILTER_VIDEO to stringResource(R.string.filter_videos),
                         FILTER_ALBUM to stringResource(R.string.filter_albums),
                         FILTER_ARTIST to stringResource(R.string.filter_artists),
+                        FILTER_PODCAST to stringResource(R.string.podcast),
                         FILTER_COMMUNITY_PLAYLIST to stringResource(R.string.filter_community_playlists),
                         FILTER_FEATURED_PLAYLIST to stringResource(R.string.filter_featured_playlists),
                     ),
@@ -296,6 +327,7 @@ fun OnlineSearchResult(
                         FILTER_VIDEO to R.drawable.slow_motion_video,
                         FILTER_ALBUM to R.drawable.album,
                         FILTER_ARTIST to R.drawable.person,
+                        FILTER_PODCAST to R.drawable.mic,
                         FILTER_COMMUNITY_PLAYLIST to R.drawable.queue_music,
                         FILTER_FEATURED_PLAYLIST to R.drawable.playlist_play,
                     ),

@@ -9,7 +9,14 @@ package moe.rukamori.archivetune.ui.player
 
 import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.HttpDataSource
+import moe.rukamori.archivetune.morideobfuscator.youtubei.YoutubeiException
+import moe.rukamori.archivetune.morideobfuscator.youtubei.YoutubeiFailureKind
 import moe.rukamori.archivetune.utils.YTPlayerUtils
+import moe.rukamori.archivetune.utils.potoken.BrokenWebViewException
+import moe.rukamori.archivetune.utils.potoken.PoTokenException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 internal enum class PlaybackErrorKind {
     LoginRefreshRequired,
@@ -23,16 +30,10 @@ internal enum class PlaybackErrorKind {
     Unknown,
 }
 
-internal enum class PlaybackRecoveryAction {
-    RefreshLogin,
-    OpenYouTubeMusic,
-}
-
 internal data class PlaybackErrorInfo(
     val kind: PlaybackErrorKind,
     val httpCode: Int?,
     val loginRecoveryUrl: String?,
-    val recoveryAction: PlaybackRecoveryAction?,
 )
 
 internal fun PlaybackException.toPlaybackErrorInfo(): PlaybackErrorInfo {
@@ -40,19 +41,29 @@ internal fun PlaybackException.toPlaybackErrorInfo(): PlaybackErrorInfo {
     val invalidPlaybackLoginContextUrl = invalidPlaybackLoginContextUrl()
     val externalLoginRecoveryUrl = loginRecoveryUrl()
     val loginRecoveryUrl = invalidPlaybackLoginContextUrl ?: externalLoginRecoveryUrl
-    val recoveryAction =
-        when {
-            invalidPlaybackLoginContextUrl != null -> PlaybackRecoveryAction.RefreshLogin
-            externalLoginRecoveryUrl != null -> PlaybackRecoveryAction.OpenYouTubeMusic
-            else -> null
-        }
+    val resolutionFailure = findCause<YoutubeiException>()
     val kind =
         when {
             invalidPlaybackLoginContextUrl != null -> PlaybackErrorKind.LoginRefreshRequired
 
             externalLoginRecoveryUrl != null -> PlaybackErrorKind.ConfirmationRequired
 
-            errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> PlaybackErrorKind.NoInternet
+            findCause<SocketTimeoutException>() != null -> PlaybackErrorKind.Timeout
+
+            resolutionFailure?.kind == YoutubeiFailureKind.TIMEOUT -> PlaybackErrorKind.Timeout
+
+            findCause<PoTokenException>() != null || findCause<BrokenWebViewException>() != null -> PlaybackErrorKind.NoStream
+
+            resolutionFailure?.kind in
+                setOf(YoutubeiFailureKind.NO_FORMAT, YoutubeiFailureKind.UNAVAILABLE, YoutubeiFailureKind.PO_TOKEN)
+            -> PlaybackErrorKind.NoStream
+
+            resolutionFailure?.kind in
+                setOf(YoutubeiFailureKind.DECIPHER, YoutubeiFailureKind.INVALID_RESPONSE)
+            -> PlaybackErrorKind.MalformedStream
+
+            errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED &&
+                hasNetworkConnectionFailureCause() -> PlaybackErrorKind.NoInternet
 
             errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> PlaybackErrorKind.Timeout
 
@@ -81,7 +92,6 @@ internal fun PlaybackException.toPlaybackErrorInfo(): PlaybackErrorInfo {
         kind = kind,
         httpCode = httpCode,
         loginRecoveryUrl = loginRecoveryUrl,
-        recoveryAction = recoveryAction,
     )
 }
 
@@ -89,6 +99,7 @@ internal fun PlaybackException.httpStatusCodeOrNull(): Int? {
     var throwable: Throwable? = cause
     while (throwable != null) {
         if (throwable is HttpDataSource.InvalidResponseCodeException) return throwable.responseCode
+        if (throwable is YoutubeiException && throwable.httpStatus != null) return throwable.httpStatus
         throwable = throwable.cause
     }
     return null
@@ -111,3 +122,6 @@ private inline fun <reified T : Throwable> Throwable.findCause(): T? {
     }
     return null
 }
+
+private fun PlaybackException.hasNetworkConnectionFailureCause(): Boolean =
+    findCause<ConnectException>() != null || findCause<UnknownHostException>() != null

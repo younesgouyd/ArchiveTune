@@ -64,11 +64,12 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.constants.AppFontPreference
-import moe.rukamori.archivetune.constants.ArchiveTuneCanvasKey
 import moe.rukamori.archivetune.constants.BackdropBlurAmountKey
 import moe.rukamori.archivetune.constants.BackdropEnabledKey
 import moe.rukamori.archivetune.constants.BlurRadiusKey
@@ -77,6 +78,8 @@ import moe.rukamori.archivetune.constants.CropThumbnailToSquareKey
 import moe.rukamori.archivetune.constants.CustomFontNameKey
 import moe.rukamori.archivetune.constants.CustomFontUriKey
 import moe.rukamori.archivetune.constants.DarkModeKey
+import moe.rukamori.archivetune.constants.DefaultLibraryFilterOrder
+import moe.rukamori.archivetune.constants.DefaultLibraryFilterOrderPreference
 import moe.rukamori.archivetune.constants.DefaultOpenTabKey
 import moe.rukamori.archivetune.constants.DisableAnimationsKey
 import moe.rukamori.archivetune.constants.DisableBlurKey
@@ -86,20 +89,29 @@ import moe.rukamori.archivetune.constants.ForceHighRefreshRateKey
 import moe.rukamori.archivetune.constants.GridItemSize
 import moe.rukamori.archivetune.constants.GridItemsSizeKey
 import moe.rukamori.archivetune.constants.HidePlayerThumbnailKey
+import moe.rukamori.archivetune.constants.LibraryChipOrderKey
 import moe.rukamori.archivetune.constants.LibraryFilter
+import moe.rukamori.archivetune.constants.LyricsBackgroundStyle
+import moe.rukamori.archivetune.constants.LyricsBackgroundStyleKey
 import moe.rukamori.archivetune.constants.MiniPlayerBackgroundStyle
 import moe.rukamori.archivetune.constants.MiniPlayerBackgroundStyleKey
+import moe.rukamori.archivetune.constants.NavigationBarBackgroundStyle
+import moe.rukamori.archivetune.constants.NavigationBarBackgroundStyleKey
+import moe.rukamori.archivetune.constants.NavigationBarMode
+import moe.rukamori.archivetune.constants.NavigationBarModeKey
 import moe.rukamori.archivetune.constants.PlayerBackgroundStyle
 import moe.rukamori.archivetune.constants.PlayerBackgroundStyleKey
 import moe.rukamori.archivetune.constants.PlayerButtonsStyle
 import moe.rukamori.archivetune.constants.PlayerButtonsStyleKey
 import moe.rukamori.archivetune.constants.PlayerDesignStyle
 import moe.rukamori.archivetune.constants.PlayerDesignStyleKey
+import moe.rukamori.archivetune.constants.PlaylistTagOrderKey
 import moe.rukamori.archivetune.constants.PureBlackKey
 import moe.rukamori.archivetune.constants.QuickPicksDisplayMode
 import moe.rukamori.archivetune.constants.QuickPicksDisplayModeKey
 import moe.rukamori.archivetune.constants.RandomThemeOnStartupKey
 import moe.rukamori.archivetune.constants.ShowHomeCategoryChipsKey
+import moe.rukamori.archivetune.constants.ShowPlayerVolumeBarKey
 import moe.rukamori.archivetune.constants.ShowTagsInLibraryKey
 import moe.rukamori.archivetune.constants.SliderStyle
 import moe.rukamori.archivetune.constants.SliderStyleKey
@@ -107,13 +119,21 @@ import moe.rukamori.archivetune.constants.SwipeSensitivityKey
 import moe.rukamori.archivetune.constants.SwipeThumbnailKey
 import moe.rukamori.archivetune.constants.SwipeToSongKey
 import moe.rukamori.archivetune.constants.ThumbnailCornerRadiusKey
+import moe.rukamori.archivetune.constants.WallpaperExtractionFailedKey
+import moe.rukamori.archivetune.constants.toLibraryFilterOrder
+import moe.rukamori.archivetune.constants.toLibraryFilterPreference
+import moe.rukamori.archivetune.constants.toPlaylistTagOrder
+import moe.rukamori.archivetune.constants.toPlaylistTagPreference
 import moe.rukamori.archivetune.ui.component.DefaultDialog
 import moe.rukamori.archivetune.ui.component.EnumListPreference
 import moe.rukamori.archivetune.ui.component.IconButton
+import moe.rukamori.archivetune.ui.component.LibraryChipOrderDialog
 import moe.rukamori.archivetune.ui.component.ListPreference
+import moe.rukamori.archivetune.ui.component.PlaylistTagOrderDialog
 import moe.rukamori.archivetune.ui.component.PreferenceEntry
 import moe.rukamori.archivetune.ui.component.PreferenceGroup
 import moe.rukamori.archivetune.ui.component.SwitchPreference
+import moe.rukamori.archivetune.ui.component.TagsManagementDialog
 import moe.rukamori.archivetune.ui.component.ThumbnailCornerRadiusSelectorButton
 import moe.rukamori.archivetune.ui.player.StyledPlaybackSlider
 import moe.rukamori.archivetune.ui.theme.CustomFontLoader
@@ -121,17 +141,31 @@ import moe.rukamori.archivetune.ui.utils.backToMain
 import moe.rukamori.archivetune.utils.isLowRamDevice
 import moe.rukamori.archivetune.utils.rememberEnumPreference
 import moe.rukamori.archivetune.utils.rememberPreference
+import moe.rukamori.archivetune.viewmodels.GlassStyleConfirmationViewModel
+import moe.rukamori.archivetune.viewmodels.GlassStyleTarget
+import moe.rukamori.archivetune.viewmodels.PlaylistTagUiModel
+import moe.rukamori.archivetune.viewmodels.PlaylistTagsScreenState
+import moe.rukamori.archivetune.viewmodels.PlaylistTagsViewModel
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppearanceSettings(navController: NavController) {
+    val glassConfirmationViewModel: GlassStyleConfirmationViewModel = hiltViewModel()
+    val pendingGlassTarget by glassConfirmationViewModel.pendingTarget.collectAsStateWithLifecycle()
+    val playlistTagsViewModel: PlaylistTagsViewModel = hiltViewModel()
+    val playlistTagsState by playlistTagsViewModel.screenState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val defaultDisableAnimations = remember(context) { context.isLowRamDevice() }
     val (dynamicTheme, onDynamicThemeChange) =
         rememberPreference(
             DynamicThemeKey,
             defaultValue = true,
+        )
+    val (wallpaperExtractionFailed) =
+        rememberPreference(
+            WallpaperExtractionFailedKey,
+            defaultValue = false,
         )
     val (randomThemeOnStartup, onRandomThemeOnStartupChange) =
         rememberPreference(
@@ -148,14 +182,14 @@ fun AppearanceSettings(navController: NavController) {
             PlayerDesignStyleKey,
             defaultValue = PlayerDesignStyle.V4,
         )
+    val (showPlayerVolumeBar, onShowPlayerVolumeBarChange) =
+        rememberPreference(
+            ShowPlayerVolumeBarKey,
+            defaultValue = true,
+        )
     val (hidePlayerThumbnail, onHidePlayerThumbnailChange) =
         rememberPreference(
             HidePlayerThumbnailKey,
-            defaultValue = false,
-        )
-    val (archiveTuneCanvasEnabled, onArchiveTuneCanvasEnabledChange) =
-        rememberPreference(
-            ArchiveTuneCanvasKey,
             defaultValue = false,
         )
     val (thumbnailCornerRadius, onThumbnailCornerRadiusChange) =
@@ -173,12 +207,59 @@ fun AppearanceSettings(navController: NavController) {
             PlayerBackgroundStyleKey,
             defaultValue = PlayerBackgroundStyle.DEFAULT,
         )
+    val (configuredLyricsBackground, onLyricsBackgroundChange) =
+        rememberEnumPreference(
+            LyricsBackgroundStyleKey,
+            defaultValue = LyricsBackgroundStyle.DEFAULT,
+        )
     val (miniPlayerBackground, onMiniPlayerBackgroundChange) =
         rememberEnumPreference(
             MiniPlayerBackgroundStyleKey,
             defaultValue = MiniPlayerBackgroundStyle.THEME,
         )
     val (pureBlack, onPureBlackChange) = rememberPreference(PureBlackKey, defaultValue = false)
+    val (navigationBarBackground, onNavigationBarBackgroundChange) =
+        rememberEnumPreference(
+            NavigationBarBackgroundStyleKey,
+            defaultValue = NavigationBarBackgroundStyle.THEME,
+        )
+    val (navigationBarMode, onNavigationBarModeChange) =
+        rememberEnumPreference(
+            NavigationBarModeKey,
+            defaultValue = NavigationBarMode.CONNECTED,
+        )
+    val onMiniPlayerBackgroundSelected = remember(glassConfirmationViewModel, onMiniPlayerBackgroundChange) {
+        { style: MiniPlayerBackgroundStyle ->
+            if (style == MiniPlayerBackgroundStyle.GLASS) {
+                glassConfirmationViewModel.requestConfirmation(GlassStyleTarget.MINI_PLAYER)
+            } else {
+                glassConfirmationViewModel.cancelConfirmation()
+                onMiniPlayerBackgroundChange(style)
+            }
+        }
+    }
+    val onNavigationBarBackgroundSelected = remember(glassConfirmationViewModel, onNavigationBarBackgroundChange) {
+        { style: NavigationBarBackgroundStyle ->
+            if (style == NavigationBarBackgroundStyle.GLASS) {
+                glassConfirmationViewModel.requestConfirmation(GlassStyleTarget.NAVIGATION_BAR)
+            } else {
+                glassConfirmationViewModel.cancelConfirmation()
+                onNavigationBarBackgroundChange(style)
+            }
+        }
+    }
+    val onCancelGlass = remember(glassConfirmationViewModel) {
+        glassConfirmationViewModel::cancelConfirmation
+    }
+    val onApplyGlass = remember(glassConfirmationViewModel, onMiniPlayerBackgroundChange, onNavigationBarBackgroundChange) {
+        {
+            when (glassConfirmationViewModel.confirmSelection()) {
+                GlassStyleTarget.MINI_PLAYER -> onMiniPlayerBackgroundChange(MiniPlayerBackgroundStyle.GLASS)
+                GlassStyleTarget.NAVIGATION_BAR -> onNavigationBarBackgroundChange(NavigationBarBackgroundStyle.GLASS)
+                null -> Unit
+            }
+        }
+    }
     val (disableBlur, onDisableBlurChange) = rememberPreference(DisableBlurKey, defaultValue = false)
     val (disableAnimations, onDisableAnimationsChange) =
         rememberPreference(
@@ -247,6 +328,29 @@ fun AppearanceSettings(navController: NavController) {
             ShowHomeCategoryChipsKey,
             defaultValue = true,
         )
+    val (libraryChipOrderPreference, onLibraryChipOrderChange) =
+        rememberPreference(
+            LibraryChipOrderKey,
+            defaultValue = DefaultLibraryFilterOrderPreference,
+        )
+    val libraryChipOrder =
+        remember(libraryChipOrderPreference) {
+            libraryChipOrderPreference.toLibraryFilterOrder()
+        }
+    val (playlistTagOrderPreference, onPlaylistTagOrderChange) =
+        rememberPreference(
+            PlaylistTagOrderKey,
+            defaultValue = "",
+        )
+    val availablePlaylistTags =
+        (playlistTagsState as? PlaylistTagsScreenState.Success)?.tags.orEmpty()
+    val playlistTagOrder =
+        remember(availablePlaylistTags, playlistTagOrderPreference) {
+            val tagsById = availablePlaylistTags.associateBy(PlaylistTagUiModel::id)
+            playlistTagOrderPreference
+                .toPlaylistTagOrder(availablePlaylistTags.map(PlaylistTagUiModel::id))
+                .mapNotNull { tagId -> tagsById[tagId] }
+        }
     val (quickPicksDisplayMode, onQuickPicksDisplayModeChange) =
         rememberEnumPreference(
             QuickPicksDisplayModeKey,
@@ -300,15 +404,28 @@ fun AppearanceSettings(navController: NavController) {
         PlayerBackgroundStyle.entries.filter {
             it != PlayerBackgroundStyle.BLUR || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         }
+    val availableLyricsBackgroundStyles =
+        remember {
+            listOf(
+                LyricsBackgroundStyle.DEFAULT,
+                LyricsBackgroundStyle.FOLLOW_THEME,
+                LyricsBackgroundStyle.COLORING,
+            )
+        }
+    val lyricsBackground = configuredLyricsBackground.resolveFor(playerBackground)
     val isPlayerStyleCustomizationEnabled =
         when (playerDesignStyle) {
             PlayerDesignStyle.V7,
             PlayerDesignStyle.V8,
             PlayerDesignStyle.V9,
+            PlayerDesignStyle.V10,
             -> false
 
             else -> true
         }
+    val isVolumeBarSupported =
+        playerDesignStyle == PlayerDesignStyle.V7 ||
+            playerDesignStyle == PlayerDesignStyle.V8
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val useDarkTheme =
         remember(darkMode, isSystemInDarkTheme) {
@@ -331,6 +448,15 @@ fun AppearanceSettings(navController: NavController) {
     var showSliderOptionDialog by rememberSaveable {
         mutableStateOf(false)
     }
+    var showLibraryChipOrderDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+    var showPlaylistTagOrderDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+    var showTagsManagementDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
 
     LaunchedEffect(isPlayerStyleCustomizationEnabled, playerBackground) {
         if (!isPlayerStyleCustomizationEnabled && playerBackground != PlayerBackgroundStyle.DEFAULT) {
@@ -342,6 +468,13 @@ fun AppearanceSettings(navController: NavController) {
         if (!isPlayerStyleCustomizationEnabled) {
             showSliderOptionDialog = false
         }
+    }
+
+    if (pendingGlassTarget != null) {
+        GlassPerformanceWarningDialog(
+            onApply = onApplyGlass,
+            onCancel = onCancelGlass,
+        )
     }
 
     if (showSliderOptionDialog && isPlayerStyleCustomizationEnabled) {
@@ -396,6 +529,37 @@ fun AppearanceSettings(navController: NavController) {
         }
     }
 
+    if (showLibraryChipOrderDialog) {
+        LibraryChipOrderDialog(
+            initialOrder = libraryChipOrder,
+            onDismiss = { showLibraryChipOrderDialog = false },
+            onConfirm = { newOrder ->
+                onLibraryChipOrderChange(newOrder.toLibraryFilterPreference())
+                showLibraryChipOrderDialog = false
+            },
+        )
+    }
+
+    if (showPlaylistTagOrderDialog) {
+        PlaylistTagOrderDialog(
+            state = playlistTagsState,
+            initialOrder = playlistTagOrder,
+            onDismiss = { showPlaylistTagOrderDialog = false },
+            onConfirm = { newOrder ->
+                onPlaylistTagOrderChange(
+                    newOrder.map(PlaylistTagUiModel::id).toPlaylistTagPreference(),
+                )
+                showPlaylistTagOrderDialog = false
+            },
+        )
+    }
+
+    if (showTagsManagementDialog) {
+        TagsManagementDialog(
+            onDismiss = { showTagsManagementDialog = false },
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -433,7 +597,23 @@ fun AppearanceSettings(navController: NavController) {
                     )
                 }
 
-                item(visible = !dynamicTheme || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                item(visible = dynamicTheme && Build.VERSION.SDK_INT < Build.VERSION_CODES.S && wallpaperExtractionFailed) {
+                    PreferenceEntry(
+                        title = { Text(stringResource(R.string.wallpaper_permission)) },
+                        description = stringResource(R.string.wallpaper_permission_desc),
+                        icon = { Icon(painterResource(R.drawable.storage), null) },
+                        onClick = {
+                            val intent =
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    android.net.Uri.fromParts("package", context.packageName, null),
+                                )
+                            context.startActivity(intent)
+                        },
+                    )
+                }
+
+                item(visible = !dynamicTheme) {
                     SwitchPreference(
                         title = { Text(stringResource(R.string.random_theme_on_startup)) },
                         description = stringResource(R.string.random_theme_on_startup_desc),
@@ -624,8 +804,25 @@ fun AppearanceSettings(navController: NavController) {
                                 PlayerDesignStyle.V7 -> stringResource(R.string.player_design_v7)
                                 PlayerDesignStyle.V8 -> stringResource(R.string.player_design_v8)
                                 PlayerDesignStyle.V9 -> stringResource(R.string.player_design_v9)
+                                PlayerDesignStyle.V10 -> stringResource(R.string.player_design_v10)
                             }
                         },
+                    )
+                }
+
+                item {
+                    SwitchPreference(
+                        title = { Text(stringResource(R.string.show_player_volume_bar)) },
+                        description =
+                            if (isVolumeBarSupported) {
+                                null
+                            } else {
+                                stringResource(R.string.player_volume_bar_v7_v8_only)
+                            },
+                        icon = { Icon(painterResource(R.drawable.volume_up), null) },
+                        checked = showPlayerVolumeBar,
+                        onCheckedChange = onShowPlayerVolumeBarChange,
+                        isEnabled = isVolumeBarSupported,
                     )
                 }
 
@@ -640,7 +837,18 @@ fun AppearanceSettings(navController: NavController) {
                             },
                         icon = { Icon(painterResource(R.drawable.gradient), null) },
                         selectedValue = playerBackground,
-                        onValueSelected = onPlayerBackgroundChange,
+                        onValueSelected = { selectedBackground ->
+                            onPlayerBackgroundChange(selectedBackground)
+                            when {
+                                selectedBackground == PlayerBackgroundStyle.CUSTOM -> {
+                                    onLyricsBackgroundChange(LyricsBackgroundStyle.CUSTOM)
+                                }
+
+                                configuredLyricsBackground == LyricsBackgroundStyle.CUSTOM -> {
+                                    onLyricsBackgroundChange(LyricsBackgroundStyle.DEFAULT)
+                                }
+                            }
+                        },
                         isEnabled = isPlayerStyleCustomizationEnabled,
                         valueText = {
                             when (it) {
@@ -652,6 +860,25 @@ fun AppearanceSettings(navController: NavController) {
                                 PlayerBackgroundStyle.BLUR_GRADIENT -> stringResource(R.string.blur_gradient)
                                 PlayerBackgroundStyle.GLOW -> stringResource(R.string.glow)
                                 PlayerBackgroundStyle.GLOW_ANIMATED -> "Glow Animated"
+                            }
+                        },
+                    )
+                }
+
+                item {
+                    ListPreference(
+                        title = { Text(stringResource(R.string.lyrics_background_style)) },
+                        icon = { Icon(painterResource(R.drawable.lyrics), null) },
+                        selectedValue = lyricsBackground,
+                        values = availableLyricsBackgroundStyles,
+                        onValueSelected = onLyricsBackgroundChange,
+                        isEnabled = playerBackground != PlayerBackgroundStyle.CUSTOM,
+                        valueText = {
+                            when (it) {
+                                LyricsBackgroundStyle.DEFAULT -> stringResource(R.string.lyrics_background_default)
+                                LyricsBackgroundStyle.FOLLOW_THEME -> stringResource(R.string.follow_theme)
+                                LyricsBackgroundStyle.COLORING -> stringResource(R.string.coloring)
+                                LyricsBackgroundStyle.CUSTOM -> stringResource(R.string.custom)
                             }
                         },
                     )
@@ -670,12 +897,54 @@ fun AppearanceSettings(navController: NavController) {
                         title = { Text(stringResource(R.string.mini_player_background_style)) },
                         icon = { Icon(painterResource(R.drawable.gradient), null) },
                         selectedValue = miniPlayerBackground,
-                        onValueSelected = onMiniPlayerBackgroundChange,
+                        onValueSelected = onMiniPlayerBackgroundSelected,
                         valueText = {
                             when (it) {
                                 MiniPlayerBackgroundStyle.THEME -> stringResource(R.string.follow_theme)
                                 MiniPlayerBackgroundStyle.GRADIENT -> stringResource(R.string.gradient)
                                 MiniPlayerBackgroundStyle.GLOW -> stringResource(R.string.glow)
+                                MiniPlayerBackgroundStyle.ACRYLIC -> stringResource(R.string.acrylic)
+                                MiniPlayerBackgroundStyle.BLUR -> stringResource(R.string.blur)
+                                MiniPlayerBackgroundStyle.GLASS -> stringResource(R.string.glass)
+                            }
+                        },
+                    )
+                }
+
+                item {
+                    EnumListPreference(
+                        title = { Text(stringResource(R.string.navigation_bar_background_style)) },
+                        icon = { Icon(painterResource(R.drawable.gradient), null) },
+                        selectedValue = navigationBarBackground,
+                        isEnabled = navigationBarMode != NavigationBarMode.APPLE_MUSIC,
+                        description = if (navigationBarMode == NavigationBarMode.APPLE_MUSIC) {
+                            stringResource(R.string.navigation_bar_background_apple_music)
+                        } else {
+                            null
+                        },
+                        onValueSelected = onNavigationBarBackgroundSelected,
+                        valueText = {
+                            when (it) {
+                                NavigationBarBackgroundStyle.THEME -> stringResource(R.string.follow_theme)
+                                NavigationBarBackgroundStyle.BLUR -> stringResource(R.string.blur)
+                                NavigationBarBackgroundStyle.ACRYLIC -> stringResource(R.string.acrylic)
+                                NavigationBarBackgroundStyle.GLASS -> stringResource(R.string.glass)
+                            }
+                        },
+                    )
+                }
+
+                item {
+                    EnumListPreference(
+                        title = { Text(stringResource(R.string.navigation_bar_mode)) },
+                        icon = { Icon(painterResource(R.drawable.palette), null) },
+                        selectedValue = navigationBarMode,
+                        onValueSelected = onNavigationBarModeChange,
+                        valueText = {
+                            when (it) {
+                                NavigationBarMode.CONNECTED -> stringResource(R.string.navigation_bar_mode_connected)
+                                NavigationBarMode.STANDALONE -> stringResource(R.string.navigation_bar_mode_standalone)
+                                NavigationBarMode.APPLE_MUSIC -> stringResource(R.string.navigation_bar_mode_apple_music)
                             }
                         },
                     )
@@ -688,16 +957,6 @@ fun AppearanceSettings(navController: NavController) {
                         icon = { Icon(painterResource(R.drawable.hide_image), null) },
                         checked = hidePlayerThumbnail,
                         onCheckedChange = onHidePlayerThumbnailChange,
-                    )
-                }
-
-                item {
-                    SwitchPreference(
-                        title = { Text(stringResource(R.string.archivetune_canvas)) },
-                        description = stringResource(R.string.archivetune_canvas_desc),
-                        icon = { Icon(painterResource(R.drawable.motion_photos_on), null) },
-                        checked = archiveTuneCanvasEnabled,
-                        onCheckedChange = onArchiveTuneCanvasEnabledChange,
                     )
                 }
 
@@ -873,7 +1132,6 @@ fun AppearanceSettings(navController: NavController) {
                             when (it) {
                                 NavigationTab.HOME -> stringResource(R.string.home)
                                 NavigationTab.SEARCH -> stringResource(R.string.search)
-                                NavigationTab.MOODANDGENRES -> stringResource(R.string.mood_and_genres)
                                 NavigationTab.LIBRARY -> stringResource(R.string.filter_library)
                             }
                         },
@@ -885,25 +1143,46 @@ fun AppearanceSettings(navController: NavController) {
                         title = { Text(stringResource(R.string.default_lib_chips)) },
                         icon = { Icon(painterResource(R.drawable.tab), null) },
                         selectedValue = defaultChip,
-                        values =
-                            listOf(
-                                LibraryFilter.LIBRARY,
-                                LibraryFilter.PLAYLISTS,
-                                LibraryFilter.SONGS,
-                                LibraryFilter.ALBUMS,
-                                LibraryFilter.ARTISTS,
-                            ),
+                        values = DefaultLibraryFilterOrder,
                         valueText = {
                             when (it) {
                                 LibraryFilter.SONGS -> stringResource(R.string.songs)
                                 LibraryFilter.ARTISTS -> stringResource(R.string.artists)
                                 LibraryFilter.ALBUMS -> stringResource(R.string.albums)
                                 LibraryFilter.PLAYLISTS -> stringResource(R.string.playlists)
+                                LibraryFilter.PODCASTS -> stringResource(R.string.podcast)
                                 LibraryFilter.SPOTIFY -> stringResource(R.string.spotify_playlists)
                                 LibraryFilter.LIBRARY -> stringResource(R.string.filter_library)
                             }
                         },
                         onValueSelected = onDefaultChipChange,
+                    )
+                }
+
+                item {
+                    PreferenceEntry(
+                        title = { Text(stringResource(R.string.arrange_library_chips)) },
+                        description = stringResource(R.string.arrange_library_chips_desc),
+                        icon = { Icon(painterResource(R.drawable.tab), null) },
+                        onClick = { showLibraryChipOrderDialog = true },
+                    )
+                }
+
+                item {
+                    PreferenceEntry(
+                        title = { Text(stringResource(R.string.arrange_playlist_tags)) },
+                        description = stringResource(R.string.arrange_playlist_tags_desc),
+                        icon = { Icon(painterResource(R.drawable.style), null) },
+                        onClick = { showPlaylistTagOrderDialog = true },
+                    )
+                }
+
+                item {
+                    PreferenceEntry(
+                        title = { Text(stringResource(R.string.manage_playlist_tags)) },
+                        description = stringResource(R.string.manage_playlist_tags_desc),
+                        icon = { Icon(painterResource(R.drawable.style), null) },
+                        onClick = { showTagsManagementDialog = true },
                     )
                 }
 
@@ -941,6 +1220,27 @@ fun AppearanceSettings(navController: NavController) {
 }
 
 @Composable
+private fun GlassPerformanceWarningDialog(
+    onApply: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    DefaultDialog(
+        onDismiss = onCancel,
+        title = { Text(stringResource(R.string.glass_performance_warning_title)) },
+        buttons = {
+            TextButton(onClick = onCancel, shapes = ButtonDefaults.shapes()) {
+                Text(stringResource(R.string.cancel))
+            }
+            TextButton(onClick = onApply, shapes = ButtonDefaults.shapes()) {
+                Text(stringResource(R.string.apply))
+            }
+        },
+    ) {
+        Text(stringResource(R.string.glass_performance_warning))
+    }
+}
+
+@Composable
 fun ApplyRefreshRate(
     isEnabled: Boolean,
     targetFps: Float,
@@ -973,7 +1273,8 @@ private fun rememberSupportedHighestFps(): Float {
 
     return remember(view) {
         val display = view.display
-        display?.supportedModes
+        display
+            ?.supportedModes
             ?.maxOfOrNull { mode -> mode.refreshRate }
             ?: display?.refreshRate
             ?: DEFAULT_STANDARD_REFRESH_RATE_FPS
@@ -1075,7 +1376,6 @@ enum class DarkMode {
 enum class NavigationTab {
     HOME,
     SEARCH,
-    MOODANDGENRES,
     LIBRARY,
 }
 

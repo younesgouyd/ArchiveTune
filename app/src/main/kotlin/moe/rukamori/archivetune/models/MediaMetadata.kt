@@ -11,9 +11,12 @@ import androidx.compose.runtime.Immutable
 import moe.rukamori.archivetune.db.entities.Song
 import moe.rukamori.archivetune.db.entities.SongEntity
 import moe.rukamori.archivetune.innertube.models.SongItem
+import moe.rukamori.archivetune.innertube.models.EpisodeItem
 import moe.rukamori.archivetune.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_OMV
 import moe.rukamori.archivetune.innertube.models.WatchEndpoint.WatchEndpointMusicSupportedConfigs.WatchEndpointMusicConfig.Companion.MUSIC_VIDEO_TYPE_UGC
+import moe.rukamori.archivetune.ui.utils.YtimgResizePolicy
 import moe.rukamori.archivetune.ui.utils.resize
+import moe.rukamori.archivetune.utils.isLocalMediaId
 import java.io.Serializable
 import java.time.LocalDateTime
 
@@ -32,6 +35,11 @@ data class MediaMetadata(
     val likedDate: LocalDateTime? = null,
     val inLibrary: LocalDateTime? = null,
     val isMusicVideo: Boolean = false,
+    val isPodcast: Boolean = false,
+    val albumArtist: String? = null,
+    val trackNumber: Int? = null,
+    val discNumber: Int? = null,
+    val year: Int? = null,
 ) : Serializable {
     companion object {
         private const val serialVersionUID = 1L
@@ -64,7 +72,14 @@ data class MediaMetadata(
             thumbnailUrl = thumbnailUrl,
             albumId = album?.id,
             albumName = album?.title,
+            albumArtist = albumArtist,
+            trackNumber = trackNumber,
+            discNumber = discNumber,
+            year = year,
+            isLocal = id.isLocalMediaId(),
             explicit = explicit,
+            isMusicVideo = isMusicVideo,
+            isPodcast = isPodcast,
             liked = liked,
             likedDate = likedDate,
             inLibrary = inLibrary,
@@ -97,6 +112,47 @@ fun Song.toMediaMetadata() =
                     title = song.albumName.orEmpty(),
                 )
             },
+        albumArtist = song.albumArtist,
+        trackNumber = song.trackNumber,
+        discNumber = song.discNumber,
+        year = song.year,
+        explicit = song.explicit,
+        isMusicVideo = song.isMusicVideo,
+        isPodcast = song.isPodcast,
+    )
+
+fun EpisodeItem.toMediaMetadata() =
+    MediaMetadata(
+        id = id,
+        title = title,
+        artists =
+            podcast?.let {
+                listOf(
+                    MediaMetadata.Artist(
+                        id = it.id,
+                        name = it.name,
+                        thumbnailUrl = null,
+                    ),
+                )
+            }.orEmpty(),
+        duration = duration ?: -1,
+        thumbnailUrl =
+            thumbnail.resize(
+                width = 1080,
+                height = 1080,
+                ytimgResizePolicy = YtimgResizePolicy.PreserveOriginal,
+            ),
+        album =
+            podcast?.let { podcast ->
+                podcast.id?.let { podcastId ->
+                    MediaMetadata.Album(
+                        id = podcastId,
+                        title = podcast.name,
+                    )
+                }
+            },
+        setVideoId = endpoint.playlistSetVideoId,
+        isPodcast = true,
     )
 
 fun SongItem.toMediaMetadata() =
@@ -112,7 +168,12 @@ fun SongItem.toMediaMetadata() =
                 )
             },
         duration = duration ?: -1,
-        thumbnailUrl = thumbnail.resize(1080, 1080),
+        thumbnailUrl =
+            thumbnail.resize(
+                width = 1080,
+                height = 1080,
+                ytimgResizePolicy = YtimgResizePolicy.PreserveOriginal,
+            ),
         album =
             album?.let {
                 MediaMetadata.Album(
@@ -125,4 +186,5 @@ fun SongItem.toMediaMetadata() =
         isMusicVideo =
             endpoint?.watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType in
                 listOf(MUSIC_VIDEO_TYPE_OMV, MUSIC_VIDEO_TYPE_UGC),
+        isPodcast = isPodcast,
     )

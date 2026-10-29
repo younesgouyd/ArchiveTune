@@ -16,6 +16,28 @@ if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
 
+fun String.asBuildConfigString(): String =
+    "\"${
+        replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+    }\""
+
+val fallbackDataServerUrl = "archive-tune-admin-remote.vercel.app"
+val dataServerUrl =
+    rootProject
+        .file("DataServer.txt")
+        .takeIf { it.isFile }
+        ?.readText()
+        ?.trim()
+        ?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+        ?: fallbackDataServerUrl
+val apiBearerToken = System.getenv("API_BEARER_TOKEN")?.trim()
+    ?: localProperties.getProperty("API_BEARER_TOKEN")?.trim()
+    ?: ""
+
 val discordApplicationId =
     (
         localProperties.getProperty("DISCORD_APPLICATION_ID")
@@ -35,17 +57,18 @@ val hasReleaseSigningConfig =
         releaseStorePassword != null &&
         releaseKeyAlias != null &&
         releaseKeyPassword != null
-
 android {
     namespace = "moe.rukamori.archivetune"
     compileSdk = 37
+    ndkVersion = "30.0.16248370"
+    compileSdkMinor = 2
 
     defaultConfig {
     applicationId = "moe.rukamori.archivetune"
         minSdk = 26
         targetSdk = 37
-        versionCode = 138
-        versionName = "13.7.0"
+        versionCode = 142
+        versionName = "15.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -67,17 +90,10 @@ android {
                 ?: ""
         buildConfigField("String", "TOGETHER_BEARER_TOKEN", "\"$togetherBearerToken\"")
 
-        val canvasBearerToken =
-            localProperties.getProperty("CANVAS_BEARER_TOKEN")
-                ?: System.getenv("CANVAS_BEARER_TOKEN")
-                ?: ""
-        buildConfigField("String", "CANVAS_BEARER_TOKEN", "\"$canvasBearerToken\"")
-
-        val extractorBearer =
-            localProperties.getProperty("EXTRACTOR_BEARER")
-                ?: System.getenv("EXTRACTOR_BEARER")
-                ?: ""
-        buildConfigField("String", "EXTRACTOR_BEARER", "\"$extractorBearer\"")
+        buildConfigField("String", "DATA_SERVER_URL", dataServerUrl.asBuildConfigString())
+        buildConfigField("String", "API_BEARER_TOKEN", apiBearerToken.asBuildConfigString())
+        buildConfigField("boolean", "GATEKEEPER_ENABLED", "false")
+        buildConfigField("boolean", "LEAK_CANARY_TOGGLE_AVAILABLE", "false")
 
         val nightlyBuildHash =
             (
@@ -86,8 +102,36 @@ android {
                     ?: ""
                 ).trim()
         buildConfigField("String", "NIGHTLY_BUILD_HASH", "\"$nightlyBuildHash\"")
+
+        val nightlyVersionName =
+            providers.gradleProperty("nightlyVersionName").orNull?.trim().orEmpty()
+        if (nightlyVersionName.isNotEmpty()) {
+            versionName = nightlyVersionName
+        }
         buildConfigField("String", "DISTRIBUTION", "\"gms\"")
         buildConfigField("boolean", "UPDATER_AVAILABLE", "true")
+
+        val githubOwner =
+            System.getenv("GITHUB_OWNER")?.trim()
+                ?: localProperties.getProperty("GITHUB_OWNER")?.trim()
+                ?: "rukamori"
+        val githubRepo =
+            System.getenv("GITHUB_REPO")?.trim()
+                ?: localProperties.getProperty("GITHUB_REPO")?.trim()
+                ?: "ArchiveTune"
+        buildConfigField("String", "GITHUB_OWNER", githubOwner.asBuildConfigString())
+        buildConfigField("String", "GITHUB_REPO", githubRepo.asBuildConfigString())
+
+        val releaseGithubOwner =
+            System.getenv("RELEASE_GITHUB_OWNER")?.trim()
+                ?: localProperties.getProperty("RELEASE_GITHUB_OWNER")?.trim()
+                ?: githubOwner
+        val releaseGithubRepo =
+            System.getenv("RELEASE_GITHUB_REPO")?.trim()
+                ?: localProperties.getProperty("RELEASE_GITHUB_REPO")?.trim()
+                ?: githubRepo
+        buildConfigField("String", "RELEASE_GITHUB_OWNER", releaseGithubOwner.asBuildConfigString())
+        buildConfigField("String", "RELEASE_GITHUB_REPO", releaseGithubRepo.asBuildConfigString())
     }
 
     flavorDimensions += listOf("distribution", "device", "abi")
@@ -118,6 +162,11 @@ android {
         create("tv") {
             dimension = "device"
             buildConfigField("String", "DEVICE", "\"tv\"")
+        }
+        create("automotive") {
+            dimension = "device"
+            minSdk = 28
+            buildConfigField("String", "DEVICE", "\"automotive\"")
         }
         create("universal") {
             dimension = "abi"
@@ -172,8 +221,21 @@ android {
             )
         }
         debug {
+            buildConfigField("boolean", "GATEKEEPER_ENABLED", "false")
             applicationIdSuffix = ".debug"
             isDebuggable = true
+        }
+        create("nightly") {
+            applicationIdSuffix = ".nightly"
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            buildConfigField("boolean", "LEAK_CANARY_TOGGLE_AVAILABLE", "true")
+            matchingFallbacks += listOf("release")
         }
     }
 
@@ -250,6 +312,8 @@ dependencies {
     compileOnly("androidx.compose.ui:ui-tooling-preview:${libs.versions.compose.get()}")
     debugImplementation("androidx.compose.ui:ui-tooling-preview:${libs.versions.compose.get()}")
     debugImplementation(libs.compose.ui.tooling)
+    debugImplementation(libs.leakcanary.android)
+    add("nightlyImplementation", libs.leakcanary.android)
     implementation(libs.compose.animation)
     implementation(libs.compose.material.icons.extended)
     implementation(libs.compose.reorderable)
@@ -259,6 +323,10 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
 
     implementation(libs.material3)
+    implementation(libs.haze)
+    implementation(libs.haze.blur)
+    implementation(libs.haze.glass)
+    implementation(libs.androidx.graphics.shapes)
     implementation(libs.palette)
     implementation(libs.androidsvg)
     implementation(libs.aboutlibraries.core)
@@ -278,19 +346,21 @@ dependencies {
     implementation(libs.shimmer)
 
     // Glance Widget support
-    implementation("androidx.glance:glance:1.1.1")
-    implementation("androidx.glance:glance-appwidget:1.1.1")
-    implementation("androidx.glance:glance-material3:1.1.1")
+    implementation("androidx.glance:glance:1.2.0")
+    implementation("androidx.glance:glance-appwidget:1.2.0")
+    implementation("androidx.glance:glance-material3:1.2.0")
 
     implementation(libs.media3)
     implementation("androidx.media3:media3-exoplayer-hls:${libs.versions.media3.get()}")
     implementation(libs.media3.session)
+    implementation(libs.car.app)
     implementation(libs.media3.okhttp)
     implementation("androidx.media3:media3-ui:${libs.versions.media3.get()}")
     implementation("androidx.media3:media3-ui-compose:${libs.versions.media3.get()}")
     add("gmsImplementation", libs.media3.cast)
     add("gmsImplementation", libs.mediarouter)
-    implementation(libs.squigglyslider)
+    add("gmsImplementation", "com.google.android.gms:play-services-auth:22.0.0")
+
 
     implementation(libs.room.runtime)
     implementation(libs.kuromoji.ipadic)
@@ -317,9 +387,12 @@ dependencies {
     implementation(project(":canvas"))
     implementation(project(":shazamkit"))
     implementation(project(":spotifycore"))
-    implementation(project(":moriextractor"))
-    implementation("com.materialkolor:material-kolor:5.0.0-alpha07")
+    implementation(project(":morideobfuscator"))
+    implementation(project(":modules"))
+    implementation("androidx.media3:media3-exoplayer-dash:${libs.versions.media3.get()}")
+    implementation("com.materialkolor:material-kolor:5.0.1")
 
+    implementation(libs.webkit)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.serialization.json)
@@ -336,15 +409,14 @@ dependencies {
     testImplementation(libs.turbine)
     implementation(libs.translator)
     implementation("androidx.lifecycle:lifecycle-process:2.11.0")
-    implementation("androidx.compose.material3.adaptive:adaptive:1.3.0-rc01")
+    implementation("androidx.compose.material3.adaptive:adaptive:1.4.0-alpha03")
     implementation(libs.accompanist.lyrics.ui)
     implementation(libs.accompanist.lyrics.core)
-
-    implementation("org.json:json:20240303")
 }
 
 androidComponents {
     onVariants(selector().all()) { variant ->
+        if (variant.productFlavors.any { (_, flavor) -> flavor == "automotive" }) return@onVariants
         val capitalizedVariantName =
             variant.name.replaceFirstChar { character ->
                 if (character.isLowerCase()) character.titlecase() else character.toString()
@@ -397,13 +469,18 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 }
 
 configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        when (requested.group) {
+            "androidx.compose.runtime",
+            "androidx.compose.foundation",
+            "androidx.compose.ui",
+            "androidx.compose.animation" -> {
+                useVersion(libs.versions.compose.get())
+                because("Keep Compose aligned with the RectList alignment-placement fix")
+            }
+        }
+    }
     resolutionStrategy.force(
-        "androidx.compose.runtime:runtime:${libs.versions.compose.get()}",
-        "androidx.compose.foundation:foundation:${libs.versions.compose.get()}",
-        "androidx.compose.ui:ui:${libs.versions.compose.get()}",
-        "androidx.compose.ui:ui-util:${libs.versions.compose.get()}",
-        "androidx.compose.ui:ui-tooling:${libs.versions.compose.get()}",
-        "androidx.compose.animation:animation-graphics:${libs.versions.compose.get()}",
         "org.jetbrains.kotlin:kotlin-metadata-jvm:${libs.versions.kotlinMetadata.get()}",
     )
 }

@@ -15,6 +15,10 @@ import kotlinx.coroutines.flow.StateFlow
 
 fun interface CastMediaItemResolver {
     fun resolveForCast(mediaItem: MediaItem): MediaItem
+
+    fun resolveForCastBlocking(mediaItem: MediaItem): MediaItem = resolveForCast(mediaItem)
+
+    fun mimeTypeForCast(mediaItem: MediaItem): String? = null
 }
 
 interface CastPlaybackRepository {

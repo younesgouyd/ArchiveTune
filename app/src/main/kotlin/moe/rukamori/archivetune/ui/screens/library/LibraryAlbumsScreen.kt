@@ -69,11 +69,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import coil3.compose.AsyncImage
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.LocalDatabase
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.LocalPlayerConnection
@@ -86,9 +83,11 @@ import moe.rukamori.archivetune.constants.AlbumSortTypeKey
 import moe.rukamori.archivetune.constants.HideExplicitKey
 import moe.rukamori.archivetune.constants.YtmSyncKey
 import moe.rukamori.archivetune.playback.queues.LocalAlbumRadio
-import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
+import moe.rukamori.archivetune.ui.component.ItemThumbnail
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.menu.AlbumMenu
+import moe.rukamori.archivetune.ui.screens.Screens
+import moe.rukamori.archivetune.ui.utils.navigateToAlbum
 import moe.rukamori.archivetune.utils.rememberEnumPreference
 import moe.rukamori.archivetune.utils.rememberPreference
 import moe.rukamori.archivetune.viewmodels.LibraryAlbumsViewModel
@@ -120,16 +119,16 @@ fun LibraryAlbumsScreen(
 
     var isGridView by rememberSaveable { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(ytmSync, filter) {
         if (ytmSync) {
-            withContext(Dispatchers.IO) {
-                viewModel.sync()
-            }
+            viewModel.refresh(filter)
         }
     }
 
     val albums by viewModel.allAlbums.collectAsStateWithLifecycle()
-    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val refreshState by viewModel.refreshState.collectAsStateWithLifecycle()
+    val refreshLibrary = remember(viewModel, filter) { { viewModel.refresh(filter) } }
+    val onRefreshErrorShown = remember(viewModel) { { viewModel.onRefreshErrorShown() } }
 
     val featuredAlbum = albums.firstOrNull()
 
@@ -139,6 +138,7 @@ fun LibraryAlbumsScreen(
         } else {
             albums
         }
+    val openSearch = remember(navController) { { navController.navigate(Screens.Search.route) } }
 
     // Issue 2: player-aware bottom padding
     val playerAwareBottomPadding =
@@ -147,12 +147,19 @@ fun LibraryAlbumsScreen(
             .asPaddingValues()
             .calculateBottomPadding() + 12.dp
 
-    ExpressivePullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = { viewModel.sync() },
+    LibraryRefreshContainer(
+        state = refreshState,
+        onRefresh = refreshLibrary,
+        onErrorShown = onRefreshErrorShown,
         modifier = Modifier.fillMaxSize(),
+        indicatorOffset = LibraryPullToRefreshIndicatorOffset,
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = LibraryHeaderContentPadding),
+        ) {
             // Sub-header controls (Sort dropdown, genres/filters, list/grid toggle)
             Row(
                 modifier =
@@ -380,7 +387,7 @@ fun LibraryAlbumsScreen(
                                         .clip(RoundedCornerShape(36.dp))
                                         .background(MaterialTheme.colorScheme.primaryContainer)
                                         .clickable {
-                                            navController.navigate("album/${album.id}")
+                                            navController.navigateToAlbum(album.id)
                                         }.padding(20.dp),
                             ) {
                                 Column {
@@ -388,14 +395,15 @@ fun LibraryAlbumsScreen(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        AsyncImage(
-                                            model = album.album.thumbnailUrl,
-                                            contentDescription = null,
+                                        ItemThumbnail(
+                                            thumbnailUrl = album.album.thumbnailUrl,
+                                            isActive = false,
+                                            isPlaying = false,
+                                            shape = RoundedCornerShape(24.dp),
                                             contentScale = ContentScale.Crop,
                                             modifier =
                                                 Modifier
-                                                    .size(80.dp)
-                                                    .clip(RoundedCornerShape(24.dp)),
+                                                    .size(80.dp),
                                         )
 
                                         Spacer(modifier = Modifier.width(16.dp))
@@ -486,6 +494,20 @@ fun LibraryAlbumsScreen(
                         }
                     }
 
+                    if (filteredAlbums.isEmpty()) {
+                        item(
+                            span = { GridItemSpan(4) },
+                            key = "albums_empty",
+                            contentType = "library_empty_state",
+                        ) {
+                            LibraryEmptyState(
+                                iconRes = R.drawable.album,
+                                actionLabelRes = R.string.search_yt_music,
+                                onAction = openSearch,
+                            )
+                        }
+                    }
+
                     // 4-column albums list
                     items(filteredAlbums, key = { it.id }) { album ->
                         Column(
@@ -493,7 +515,7 @@ fun LibraryAlbumsScreen(
                                 Modifier
                                     .fillMaxWidth()
                                     .combinedClickable(
-                                        onClick = { navController.navigate("album/${album.id}") },
+                                        onClick = { navController.navigateToAlbum(album.id) },
                                         onLongClick = {
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             menuState.show {
@@ -513,9 +535,11 @@ fun LibraryAlbumsScreen(
                                         .aspectRatio(1f)
                                         .clip(RoundedCornerShape(22.dp)),
                             ) {
-                                AsyncImage(
-                                    model = album.album.thumbnailUrl,
-                                    contentDescription = null,
+                                ItemThumbnail(
+                                    thumbnailUrl = album.album.thumbnailUrl,
+                                    isActive = false,
+                                    isPlaying = false,
+                                    shape = RoundedCornerShape(22.dp),
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize(),
                                 )
@@ -570,6 +594,16 @@ fun LibraryAlbumsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
+                    if (filteredAlbums.isEmpty()) {
+                        item(key = "albums_empty", contentType = "library_empty_state") {
+                            LibraryEmptyState(
+                                iconRes = R.drawable.album,
+                                actionLabelRes = R.string.search_yt_music,
+                                onAction = openSearch,
+                            )
+                        }
+                    }
+
                     items(filteredAlbums, key = { it.id }) { album ->
                         Row(
                             modifier =
@@ -578,7 +612,7 @@ fun LibraryAlbumsScreen(
                                     .clip(RoundedCornerShape(28.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                                     .combinedClickable(
-                                        onClick = { navController.navigate("album/${album.id}") },
+                                        onClick = { navController.navigateToAlbum(album.id) },
                                         onLongClick = {
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             menuState.show {
@@ -592,14 +626,15 @@ fun LibraryAlbumsScreen(
                                     ).padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            AsyncImage(
-                                model = album.album.thumbnailUrl,
-                                contentDescription = null,
+                            ItemThumbnail(
+                                thumbnailUrl = album.album.thumbnailUrl,
+                                isActive = false,
+                                isPlaying = false,
+                                shape = RoundedCornerShape(20.dp),
                                 contentScale = ContentScale.Crop,
                                 modifier =
                                     Modifier
-                                        .size(60.dp)
-                                        .clip(RoundedCornerShape(20.dp)),
+                                        .size(60.dp),
                             )
                             Spacer(modifier = Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {

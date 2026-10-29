@@ -16,12 +16,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -43,7 +44,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -78,7 +78,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.palette.graphics.Palette
-import coil3.compose.AsyncImage
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
@@ -103,7 +102,7 @@ import moe.rukamori.archivetune.innertube.models.PlaylistItem
 import moe.rukamori.archivetune.innertube.models.WatchEndpoint
 import moe.rukamori.archivetune.playback.queues.ListQueue
 import moe.rukamori.archivetune.ui.component.CreatePlaylistDialog
-import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
+import moe.rukamori.archivetune.ui.component.ItemThumbnail
 import moe.rukamori.archivetune.ui.component.LocalMenuState
 import moe.rukamori.archivetune.ui.menu.PlaylistMenu
 import moe.rukamori.archivetune.ui.menu.YouTubePlaylistMenu
@@ -136,10 +135,8 @@ fun LibraryPlaylistsScreen(
         )
     val (sortDescending, onSortDescendingChange) = rememberPreference(PlaylistSortDescendingKey, true)
     var locked by rememberPreference(PlaylistEditLockKey, defaultValue = true)
-    val isDarkTheme = isSystemInDarkTheme()
-    val pureBlack by rememberPreference(PureBlackKey, defaultValue = false)
-
     val playlists by viewModel.allPlaylists.collectAsStateWithLifecycle()
+    val downloadedPlaylistIds by viewModel.downloadedPlaylistIds.collectAsStateWithLifecycle()
     val filteredPlaylistIds by database
         .playlistIdsByTags(
             if (selectedTagIds.isEmpty()) emptyList() else selectedTagIds.toList(),
@@ -161,7 +158,9 @@ fun LibraryPlaylistsScreen(
 
     var isGridView by rememberSaveable { mutableStateOf(false) }
     var showCreatePlaylistDialog by rememberSaveable { mutableStateOf(false) }
-    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val refreshState by viewModel.refreshState.collectAsStateWithLifecycle()
+    val refreshLibrary = remember(viewModel) { { viewModel.sync() } }
+    val onRefreshErrorShown = remember(viewModel) { { viewModel.onRefreshErrorShown() } }
     val lazyListState = rememberLazyListState()
     var pendingPlaylistOrderUpdate by remember { mutableStateOf(false) }
     val reorderableState =
@@ -206,19 +205,26 @@ fun LibraryPlaylistsScreen(
             .asPaddingValues()
             .calculateBottomPadding() + 12.dp
 
-    ExpressivePullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = { viewModel.sync() },
+    LibraryRefreshContainer(
+        state = refreshState,
+        onRefresh = refreshLibrary,
+        onErrorShown = onRefreshErrorShown,
         modifier = Modifier.fillMaxSize(),
+        indicatorOffset = LibraryPullToRefreshIndicatorOffset,
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = LibraryHeaderContentPadding),
+        ) {
             // Control row (Sort dropdown, grid/list layout toggle, + add button)
             Row(
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Left: Sort dropdown
@@ -253,7 +259,10 @@ fun LibraryPlaylistsScreen(
                     label = "PlaylistSortDirectionRotation",
                 )
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Box {
                         Row(
                             modifier =
@@ -266,8 +275,11 @@ fun LibraryPlaylistsScreen(
                         ) {
                             Text(
                                 text = currentSortLabel,
+                                modifier = Modifier.weight(1f, fill = false),
                                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Icon(
@@ -302,6 +314,27 @@ fun LibraryPlaylistsScreen(
                                     },
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.hidden_playlists)) },
+                                onClick = {
+                                    showHidden = !showHidden
+                                    showSortMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.visibility_off),
+                                        contentDescription = null,
+                                    )
+                                },
+                                trailingIcon = {
+                                    if (showHidden) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.check),
+                                            contentDescription = null,
+                                        )
+                                    }
+                                },
+                            )
                         }
                     }
 
@@ -396,46 +429,20 @@ fun LibraryPlaylistsScreen(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    Row(
-                        modifier =
-                            Modifier
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                .padding(horizontal = 4.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    IconButton(
+                        onClick = { showCreatePlaylistDialog = true },
+                        colors =
+                            IconButtonDefaults.iconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                        modifier = Modifier.size(40.dp),
                     ) {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(if (showHidden) MaterialTheme.colorScheme.primary else Color.Transparent)
-                                    .clickable { showHidden = !showHidden },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.visibility_off),
-                                contentDescription = stringResource(R.string.show_hidden_playlists),
-                                tint = if (showHidden) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                        Box(
-                            modifier =
-                                Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
-                                    .clickable { showCreatePlaylistDialog = true },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.add),
-                                contentDescription = stringResource(R.string.create_playlist),
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
+                        Icon(
+                            painter = painterResource(id = R.drawable.add),
+                            contentDescription = stringResource(R.string.create_playlist),
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 }
             }
@@ -447,6 +454,8 @@ fun LibraryPlaylistsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            val createPlaylist = remember { { showCreatePlaylistDialog = true } }
+
             // Main Content
             if (isGridView) {
                 LazyVerticalGrid(
@@ -456,6 +465,20 @@ fun LibraryPlaylistsScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
+                    if (visiblePlaylists.isEmpty()) {
+                        item(
+                            span = { GridItemSpan(2) },
+                            key = "playlists_empty",
+                            contentType = "library_empty_state",
+                        ) {
+                            LibraryEmptyState(
+                                iconRes = R.drawable.playlist_add,
+                                actionLabelRes = R.string.create_playlist,
+                                onAction = createPlaylist,
+                            )
+                        }
+                    }
+
                     items(
                         items = visiblePlaylists,
                         key = { playlist -> playlist.id },
@@ -463,6 +486,7 @@ fun LibraryPlaylistsScreen(
                     ) { playlist ->
                         PlaylistGridCard(
                             playlist = playlist,
+                            isDownloaded = playlist.id in downloadedPlaylistIds,
                             onClick = {
                                 openPlaylist(navController, playlist)
                             },
@@ -487,20 +511,29 @@ fun LibraryPlaylistsScreen(
                     }
                 }
             } else {
-                val spaceBetween = if (isDarkTheme && pureBlack) 0.dp else 12.dp
                 val listPlaylists = if (sortType == PlaylistSortType.CUSTOM) mutablePlaylists else visiblePlaylists
                 val showDragHandles = sortType == PlaylistSortType.CUSTOM && !locked
                 LazyColumn(
                     state = lazyListState,
                     contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = playerAwareBottomPadding),
-                    verticalArrangement = Arrangement.spacedBy(spaceBetween),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
+                    if (listPlaylists.isEmpty()) {
+                        item(key = "playlists_empty", contentType = "library_empty_state") {
+                            LibraryEmptyState(
+                                iconRes = R.drawable.playlist_add,
+                                actionLabelRes = R.string.create_playlist,
+                                onAction = createPlaylist,
+                            )
+                        }
+                    }
+
                     itemsIndexed(
                         items = listPlaylists,
                         key = { _, playlist -> playlist.id },
                         contentType = { _, _ -> "playlist_list" },
-                    ) { index, playlist ->
+                    ) { _, playlist ->
                         ReorderableItem(
                             state = reorderableState,
                             key = playlist.id,
@@ -509,16 +542,9 @@ fun LibraryPlaylistsScreen(
                                     compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
                                 },
                         ) {
-                            val showDivider = isDarkTheme && pureBlack && index > 0
-                            if (showDivider) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                                    thickness = 0.5.dp,
-                                )
-                            }
                             PlaylistListCard(
                                 playlist = playlist,
+                                isDownloaded = playlist.id in downloadedPlaylistIds,
                                 onClick = {
                                     openPlaylist(navController, playlist)
                                 },
@@ -714,164 +740,89 @@ fun rememberArtworkCardColor(
 @Composable
 fun PlaylistListCard(
     playlist: Playlist,
+    isDownloaded: Boolean,
     onClick: () -> Unit,
     onPlay: () -> Unit,
     onMenuClick: () -> Unit,
     showDragHandle: Boolean = false,
     dragHandleModifier: Modifier = Modifier,
 ) {
-    val cardBgColor =
-        rememberArtworkCardColor(
-            thumbnailUrl = playlist.thumbnails.getOrNull(0),
-            fallbackColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    val sourceLabel =
+        stringResource(
+            if (playlist.playlist.isEditable) {
+                R.string.personal_label
+            } else {
+                R.string.youtube_synced
+            },
         )
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1.0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "PlaylistListCardScale",
-    )
-
-    val hiddenAlpha = if (playlist.playlist.isHidden) 0.45f else 1f
-
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    alpha = hiddenAlpha
-                }.clip(RoundedCornerShape(32.dp))
-                .background(cardBgColor)
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick,
-                ).padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Thumbnail
-        AsyncImage(
-            model = playlist.thumbnails.getOrNull(0),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier =
-                Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-        )
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        // Text & details
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = playlist.playlist.name,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = "${playlist.songCount} ${stringResource(R.string.tracks_label)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                )
-
-                // Tag pill
-                val tagText =
-                    if (playlist.playlist.isEditable) {
-                        stringResource(
-                            R.string.personal_label,
-                        )
-                    } else {
-                        stringResource(R.string.youtube_synced)
-                    }
-                val tagColor = if (playlist.playlist.isEditable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                Box(
-                    modifier =
-                        Modifier
-                            .clip(CircleShape)
-                            .background(tagColor.copy(alpha = 0.12f))
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
+    val sourceColor =
+        if (playlist.playlist.isEditable) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.secondary
+        }
+    val additionalAction: (@Composable RowScope.() -> Unit)? =
+        if (showDragHandle) {
+            {
+                Spacer(modifier = Modifier.width(4.dp))
+                IconButton(
+                    onClick = {},
+                    modifier = dragHandleModifier.size(36.dp),
                 ) {
-                    Text(
-                        text = tagText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = tagColor,
+                    Icon(
+                        painter = painterResource(R.drawable.drag_handle),
+                        contentDescription = null,
                     )
                 }
-
+            }
+        } else {
+            null
+        }
+    val metadataTrailingContent: (@Composable RowScope.() -> Unit)? =
+        if (isDownloaded || playlist.playlist.isHidden) {
+            {
+                if (isDownloaded) {
+                    Icon(
+                        painter = painterResource(R.drawable.offline),
+                        contentDescription = stringResource(R.string.downloaded_desc),
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 if (playlist.playlist.isHidden) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Icon(
-                        painter = painterResource(id = R.drawable.visibility_off),
+                        painter = painterResource(R.drawable.visibility_off),
                         contentDescription = stringResource(R.string.hide_playlist),
                         modifier = Modifier.size(12.dp),
                         tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
                     )
                 }
             }
+        } else {
+            null
         }
 
-        // Play Button
-        IconButton(
-            onClick = onPlay,
-            colors =
-                IconButtonDefaults.iconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    contentColor = MaterialTheme.colorScheme.primary,
-                ),
-            modifier = Modifier.size(36.dp),
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.play),
-                contentDescription = stringResource(R.string.play),
-                modifier = Modifier.size(16.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.width(4.dp))
-
-        // Options Button
-        IconButton(
-            onClick = onMenuClick,
-            modifier = Modifier.size(36.dp),
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.more_vert),
-                contentDescription = stringResource(R.string.options_label),
-            )
-        }
-
-        if (showDragHandle) {
-            Spacer(modifier = Modifier.width(4.dp))
-            IconButton(
-                onClick = {},
-                modifier = dragHandleModifier.size(36.dp),
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.drag_handle),
-                    contentDescription = null,
-                )
-            }
-        }
-    }
+    LibraryMediaListCard(
+        title = playlist.playlist.name,
+        subtitle = "${playlist.songCount} ${stringResource(R.string.tracks_label)}",
+        thumbnailUrl = playlist.thumbnails.getOrNull(0),
+        sourceLabel = sourceLabel,
+        sourceColor = sourceColor,
+        onClick = onClick,
+        onPlay = onPlay,
+        onMenuClick = onMenuClick,
+        contentAlpha = if (playlist.playlist.isHidden) 0.45f else 1f,
+        metadataTrailingContent = metadataTrailingContent,
+        additionalAction = additionalAction,
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PlaylistGridCard(
     playlist: Playlist,
+    isDownloaded: Boolean,
     onClick: () -> Unit,
     onPlay: () -> Unit,
     onLongClick: () -> Unit,
@@ -916,12 +867,33 @@ fun PlaylistGridCard(
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(26.dp)),
         ) {
-            AsyncImage(
-                model = playlist.thumbnails.getOrNull(0),
-                contentDescription = null,
+            ItemThumbnail(
+                thumbnailUrl = playlist.thumbnails.getOrNull(0),
+                isActive = false,
+                isPlaying = false,
+                shape = RoundedCornerShape(26.dp),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+            if (isDownloaded) {
+                Box(
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.offline),
+                        contentDescription = stringResource(R.string.downloaded_desc),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
             // Play overlay on bottom right of grid cover
             Box(
                 modifier =

@@ -18,6 +18,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
 import moe.rukamori.archivetune.models.MediaMetadata
 import moe.rukamori.archivetune.ui.component.BottomSheetState
+import moe.rukamori.archivetune.ui.utils.navigateToAlbum
+import moe.rukamori.archivetune.ui.utils.navigateToArtist
 
 /**
  * Centralized *behavior* for the title/artist block shared by every player design style.
@@ -52,10 +54,9 @@ fun rememberPlayerTitleActions(
     val context = LocalContext.current
     val clipboardManager =
         context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val artistLine =
-        remember(mediaMetadata.artists) {
-            mediaMetadata.artists.joinToString(", ") { it.name }
-        }
+    val artistLine = remember(mediaMetadata.artists) {
+        mediaMetadata.artists.joinToString(", ") { it.name }
+    }
 
     return remember(mediaMetadata, navController, state, artistLine) {
         PlayerTitleActions(
@@ -66,24 +67,24 @@ fun rememberPlayerTitleActions(
                     // without animation and left the anchor stale, so tapping the title from the
                     // home screen failed to collapse the player reliably.)
                     state.collapseSoft()
-                    navController.navigate("album/${album.id}")
+                    navController.navigateToAlbum(album.id)
                 }
             },
             onArtistClick = { artistId ->
                 if (artistId.isNotBlank()) {
                     state.collapseSoft()
-                    navController.navigate("artist/$artistId")
+                    navController.navigateToArtist(artistId)
                 }
             },
             onCopyTitle = {
                 clipboardManager.setPrimaryClip(
-                    ClipData.newPlainText("Copied Title", mediaMetadata.title),
+                    ClipData.newPlainText("Copied Title", mediaMetadata.title)
                 )
                 Toast.makeText(context, "Copied Title", Toast.LENGTH_SHORT).show()
             },
             onCopyArtists = {
                 clipboardManager.setPrimaryClip(
-                    ClipData.newPlainText("Copied Artist", artistLine),
+                    ClipData.newPlainText("Copied Artist", artistLine)
                 )
                 Toast.makeText(context, "Copied Artist", Toast.LENGTH_SHORT).show()
             },

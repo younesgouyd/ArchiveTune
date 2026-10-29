@@ -17,20 +17,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
-import moe.rukamori.archivetune.R
 import moe.rukamori.archivetune.spotify.SpotifyLibraryViewModel
 import moe.rukamori.archivetune.ui.component.ExpressivePullToRefreshBox
+import moe.rukamori.archivetune.ui.component.SpotifyLikedSongsListItem
 import moe.rukamori.archivetune.ui.component.SpotifyLibraryPlaylistListItem
 
 @Composable
@@ -50,27 +47,22 @@ fun LibrarySpotifyPlaylistsScreen(
         isRefreshing = isRefreshing,
         onRefresh = viewModel::refreshPlaylists,
         modifier = Modifier.fillMaxSize(),
+        indicatorOffset = LibraryPullToRefreshIndicatorOffset,
     ) {
         LazyColumn(
             state = rememberLazyListState(),
             contentPadding =
                 PaddingValues(
                     start = 24.dp,
+                    top = LibraryHeaderContentPadding,
                     end = 24.dp,
                     bottom = playerAwareBottomPadding,
                 ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (playlists.isEmpty()) {
-                item(key = "spotify_empty", contentType = "spotify_empty") {
-                    Text(
-                        text = stringResource(R.string.spotify_no_sources),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(vertical = 16.dp),
-                    )
-                }
+            item(key = "spotify_liked_songs", contentType = "spotify_liked_songs") {
+                SpotifyLikedSongsListItem(navController = navController)
             }
 
             items(

@@ -77,7 +77,7 @@ private enum class DiscordAuthorizationUiMode { Idle, Waiting, Success, Failure 
 private val DiscordImageOptions = listOf("thumbnail", "artist", "appicon", "custom")
 private val DiscordSmallImageOptions = listOf("thumbnail", "artist", "appicon", "custom", "dontshow")
 private val DiscordActivityStatusOptions = listOf("online", "dnd", "idle", "streaming")
-private val DiscordPlatformOptions = listOf("desktop", "xbox", "samsung", "ios", "android", "embedded", "ps4", "ps5")
+
 private val DiscordActivityTypeOptions = listOf("PLAYING", "STREAMING", "LISTENING", "WATCHING", "COMPETING")
 private val DiscordLargeTextOptions = listOf("song", "artist", "album", "app", "custom", "dontshow")
 
@@ -286,12 +286,6 @@ fun DiscordSettings(navController: NavController) {
             defaultValue = "online",
         )
 
-    val (platformSelection, onPlatformSelectionChange) =
-        rememberPreference(
-            key = DiscordActivityPlatformKey,
-            defaultValue = "android",
-        )
-
     val (nameSource, onNameSourceChange) =
         rememberEnumPreference(
             key = DiscordActivityNameKey,
@@ -346,7 +340,7 @@ fun DiscordSettings(navController: NavController) {
     val (button2CustomUrl) =
         rememberPreference(
             key = DiscordActivityButton2CustomUrlKey,
-            defaultValue = "https://github.com/ArchiveTuneApp/ArchiveTune",
+            defaultValue = "https://github.com/rukamori/ArchiveTune",
         )
 
     val (activityType, onActivityTypeChange) =
@@ -538,16 +532,6 @@ fun DiscordSettings(navController: NavController) {
                         )
                     }
 
-                    item {
-                        ListPreference(
-                            title = { Text(stringResource(R.string.platform_status)) },
-                            icon = { Icon(painterResource(R.drawable.desktop_windows), null) },
-                            selectedValue = platformSelection,
-                            values = DiscordPlatformOptions,
-                            valueText = { discordPlatformLabel(it) },
-                            onValueSelected = onPlatformSelectionChange,
-                        )
-                    }
                 }
             }
 
@@ -1118,20 +1102,6 @@ private fun discordPresenceStatusLabel(value: String): String =
     }
 
 @Composable
-private fun discordPlatformLabel(value: String): String =
-    when (value) {
-        "desktop" -> stringResource(R.string.discord_platform_desktop)
-        "xbox" -> stringResource(R.string.discord_platform_xbox)
-        "samsung" -> stringResource(R.string.discord_platform_samsung)
-        "ios" -> stringResource(R.string.discord_platform_ios)
-        "android" -> stringResource(R.string.discord_platform_android)
-        "embedded" -> stringResource(R.string.discord_platform_embedded)
-        "ps4" -> stringResource(R.string.discord_platform_ps4)
-        "ps5" -> stringResource(R.string.discord_platform_ps5)
-        else -> stringResource(R.string.discord_platform_android)
-    }
-
-@Composable
 private fun discordActivityTypeLabel(value: String): String =
     when (value) {
         "PLAYING" -> stringResource(R.string.discord_activity_type_playing_label)
@@ -1231,7 +1201,7 @@ fun RichPresence(
     button2Label: String = "Go to ArchiveTune",
     button2Enabled: Boolean = true,
     button2UrlSource: String = "custom",
-    button2CustomUrl: String = "https://github.com/ArchiveTuneApp/ArchiveTune",
+    button2CustomUrl: String = "https://github.com/rukamori/ArchiveTune",
     isPlaying: Boolean = false,
 ) {
     val context = LocalContext.current
@@ -1342,7 +1312,7 @@ fun RichPresence(
                                 when (largeImageType.lowercase()) {
                                     "thumbnail" -> song?.song?.thumbnailUrl
                                     "artist" -> song?.artists?.firstOrNull()?.thumbnailUrl
-                                    "appicon" -> "https://raw.githubusercontent.com/ArchiveTuneApp/ArchiveTune/main/fastlane/metadata/android/en-US/images/icon.png"
+                                    "appicon" -> "https://raw.githubusercontent.com/rukamori/ArchiveTune/main/fastlane/metadata/android/en-US/images/icon.png"
                                     "custom" -> largeImageCustomUrl.ifBlank { song?.song?.thumbnailUrl }
                                     else -> song?.song?.thumbnailUrl
                                 }
@@ -1372,7 +1342,7 @@ fun RichPresence(
                                 when (smallImageType.lowercase()) {
                                     "thumbnail" -> songThumb
                                     "artist" -> artistThumb
-                                    "appicon" -> "https://raw.githubusercontent.com/ArchiveTuneApp/ArchiveTune/main/fastlane/metadata/android/en-US/images/icon.png"
+                                    "appicon" -> "https://raw.githubusercontent.com/rukamori/ArchiveTune/main/fastlane/metadata/android/en-US/images/icon.png"
                                     "custom" -> smallImageCustomUrl.takeIf { it.isNotBlank() } ?: songThumb
                                     "dontshow", "none" -> null
                                     else -> artistThumb
